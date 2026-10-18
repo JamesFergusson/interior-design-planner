@@ -1,0 +1,12 @@
+{
+  "name": "interior-design-planner",
+  "version": "0.1.0",
+  "description": "Plan a room makeover: Claude sets up an interactive planner with real product options for each part of the room, a running budget, a shopping schedule and a one-click ChatGPT visualisation.",
+  "author": {
+    "name": "James Fergusson"
+  },
+  "homepage": "https://github.com/JamesFergusson/interior-design-planner",
+  "repository": "https://github.com/JamesFergusson/interior-design-planner",
+  "license": "MIT",
+  "keywords": ["interior design", "renovation", "home", "planner", "shopping list", "budget"]
+}

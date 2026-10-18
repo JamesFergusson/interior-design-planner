@@ -1,0 +1,22 @@
+{
+  "name": "fergusson-plugins",
+  "owner": {
+    "name": "James Fergusson"
+  },
+  "metadata": {
+    "description": "Plugins by James Fergusson."
+  },
+  "plugins": [
+    {
+      "name": "interior-design-planner",
+      "source": "./plugins/interior-design-planner",
+      "description": "Plan a room makeover with an interactive planner: product options per part of the room, budget, shopping schedule and a ChatGPT visualisation.",
+      "version": "0.1.0",
+      "author": {
+        "name": "James Fergusson"
+      },
+      "category": "productivity",
+      "keywords": ["interior design", "renovation", "home"]
+    }
+  ]
+}

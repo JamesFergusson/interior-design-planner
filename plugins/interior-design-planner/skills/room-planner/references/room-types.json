@@ -1,0 +1,159 @@
+{
+  "_about": "Starter parts for each room type. qtyFrom: walls = net wall area (perimeter x height, less 15% for doors and windows); floor = floor area; ceiling = ceiling area; perimeter = length of all walls; a number = that many items; null = set during setup. waste = % added for cutting and breakage.",
+  "living-room": {
+    "label": "Living room",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls", "hint": "a soft neutral that suits the scheme"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "rug", "group": "Walls & floor", "name": "Rug", "unit": "item", "qtyFrom": 1, "place": "Under the front legs of the sofa and chairs"},
+      {"id": "sofa", "group": "Seating", "name": "Sofa", "unit": "item", "qtyFrom": 1, "place": "Facing the focal wall"},
+      {"id": "armchair", "group": "Seating", "name": "Armchair", "unit": "item", "qtyFrom": 1, "place": "Angled towards the sofa"},
+      {"id": "coffee-table", "group": "Tables & storage", "name": "Coffee table", "unit": "item", "qtyFrom": 1, "place": "In front of the sofa, about 450 mm away"},
+      {"id": "side-table", "group": "Tables & storage", "name": "Side table", "unit": "item", "qtyFrom": 1, "place": "Beside the sofa or armchair"},
+      {"id": "shelving", "group": "Tables & storage", "name": "Shelving or bookcase", "unit": "item", "qtyFrom": 1, "place": "Alcove or side wall"},
+      {"id": "media-unit", "group": "Tables & storage", "name": "TV or media unit", "unit": "item", "qtyFrom": 1, "place": "Under the TV"},
+      {"id": "window", "group": "Windows", "name": "Curtains or blinds", "unit": "item", "qtyFrom": 1, "place": "Main window"},
+      {"id": "ceiling-light", "group": "Lighting", "name": "Ceiling light", "unit": "item", "qtyFrom": 1, "place": "Centre of the ceiling"},
+      {"id": "floor-lamp", "group": "Lighting", "name": "Floor lamp", "unit": "item", "qtyFrom": 1, "place": "Behind or beside the armchair"},
+      {"id": "table-lamp", "group": "Lighting", "name": "Table lamp", "unit": "item", "qtyFrom": 1, "place": "On the side table"},
+      {"id": "cushions", "group": "Finishing touches", "name": "Cushions and throws", "unit": "item", "qtyFrom": 1, "place": "Sofa and armchair"},
+      {"id": "art", "group": "Finishing touches", "name": "Art or mirror", "unit": "item", "qtyFrom": 1, "place": "Above the sofa"},
+      {"id": "plants", "group": "Finishing touches", "name": "Plants and planters", "unit": "item", "qtyFrom": 1, "place": "By the window"}
+    ]
+  },
+  "bedroom": {
+    "label": "Bedroom",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls"},
+      {"id": "feature-wall", "group": "Walls & floor", "name": "Feature wall (paint, panelling or wallpaper)", "unit": "item", "qtyFrom": 1, "place": "Wall behind the bed"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring or carpet", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "rug", "group": "Walls & floor", "name": "Rug", "unit": "item", "qtyFrom": 1, "place": "Under the lower two-thirds of the bed"},
+      {"id": "bed", "group": "Bed", "name": "Bed frame", "unit": "item", "qtyFrom": 1, "place": "Headboard against the main wall"},
+      {"id": "mattress", "group": "Bed", "name": "Mattress", "unit": "item", "qtyFrom": 1, "place": "On the bed frame"},
+      {"id": "bedding", "group": "Bed", "name": "Bedding", "unit": "item", "qtyFrom": 1, "place": "Bed"},
+      {"id": "bedside", "group": "Storage", "name": "Bedside tables", "unit": "item", "qtyFrom": 2, "place": "Either side of the bed"},
+      {"id": "wardrobe", "group": "Storage", "name": "Wardrobe", "unit": "item", "qtyFrom": 1, "place": "Side wall"},
+      {"id": "drawers", "group": "Storage", "name": "Chest of drawers", "unit": "item", "qtyFrom": 1, "place": "Opposite the bed"},
+      {"id": "window", "group": "Windows", "name": "Curtains or blackout blinds", "unit": "item", "qtyFrom": 1, "place": "Main window"},
+      {"id": "ceiling-light", "group": "Lighting", "name": "Ceiling light", "unit": "item", "qtyFrom": 1, "place": "Centre of the ceiling"},
+      {"id": "bedside-lights", "group": "Lighting", "name": "Bedside lights", "unit": "item", "qtyFrom": 2, "place": "On the bedside tables or wall-mounted"},
+      {"id": "mirror", "group": "Finishing touches", "name": "Mirror", "unit": "item", "qtyFrom": 1, "place": "Above the drawers or full length"},
+      {"id": "art", "group": "Finishing touches", "name": "Art", "unit": "item", "qtyFrom": 1, "place": "Above the bed"}
+    ]
+  },
+  "bathroom": {
+    "label": "Bathroom",
+    "elements": [
+      {"id": "tile-shower", "group": "Tiles & walls", "name": "Shower or bath wall tile", "unit": "m²", "qtyFrom": null, "waste": 10, "place": "Shower or bath walls, full height"},
+      {"id": "tile-wall", "group": "Tiles & walls", "name": "Other wall tile", "unit": "m²", "qtyFrom": null, "waste": 10, "place": "Behind the basin and WC"},
+      {"id": "floor", "group": "Tiles & walls", "name": "Floor tile", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "paint", "group": "Tiles & walls", "name": "Paint", "unit": "m²", "qtyFrom": null, "place": "Untiled walls and ceiling", "hint": "white or soft neutral, moisture-resistant bathroom paint"},
+      {"id": "bath", "group": "Bath & shower", "name": "Bath", "unit": "item", "qtyFrom": 1, "place": "Along the longest wall"},
+      {"id": "enclosure", "group": "Bath & shower", "name": "Shower screen or enclosure", "unit": "item", "qtyFrom": 1, "place": "Open side of the shower"},
+      {"id": "tray", "group": "Bath & shower", "name": "Shower tray", "unit": "item", "qtyFrom": 1, "place": "Shower area", "hint": "white, low profile"},
+      {"id": "shower-set", "group": "Bath & shower", "name": "Shower valve and heads", "unit": "item", "qtyFrom": 1, "place": "Shower wall"},
+      {"id": "vanity", "group": "Basin & WC", "name": "Vanity and basin", "unit": "item", "qtyFrom": 1, "place": "Facing the door"},
+      {"id": "basin-tap", "group": "Basin & WC", "name": "Basin tap", "unit": "item", "qtyFrom": 1, "place": "On the basin"},
+      {"id": "wc", "group": "Basin & WC", "name": "WC", "unit": "item", "qtyFrom": 1, "place": "Beside the vanity", "hint": "plain white close-coupled"},
+      {"id": "mirror", "group": "Basin & WC", "name": "Mirror or cabinet", "unit": "item", "qtyFrom": 1, "place": "Above the basin"},
+      {"id": "towel-rail", "group": "Heating, lighting & air", "name": "Heated towel rail", "unit": "item", "qtyFrom": 1, "place": "Near the shower or bath"},
+      {"id": "fan", "group": "Heating, lighting & air", "name": "Extractor fan", "unit": "item", "qtyFrom": 1, "place": "Ceiling, near the shower", "hint": "small white ceiling fan"},
+      {"id": "lights", "group": "Heating, lighting & air", "name": "Lighting", "unit": "item", "qtyFrom": 1, "place": "Ceiling, rated for bathrooms", "hint": "small white recessed downlights"},
+      {"id": "accessories", "group": "Finishing touches", "name": "Accessories", "unit": "item", "qtyFrom": 1, "place": "Toilet roll holder, towel ring, hooks"}
+    ]
+  },
+  "kitchen": {
+    "label": "Kitchen",
+    "elements": [
+      {"id": "units", "group": "Units & surfaces", "name": "Kitchen units", "unit": "item", "qtyFrom": 1, "place": "Main run"},
+      {"id": "worktop", "group": "Units & surfaces", "name": "Worktop", "unit": "m", "qtyFrom": null, "waste": 5, "place": "On top of the base units"},
+      {"id": "splashback", "group": "Units & surfaces", "name": "Splashback", "unit": "m²", "qtyFrom": null, "waste": 10, "place": "Between worktop and wall units"},
+      {"id": "handles", "group": "Units & surfaces", "name": "Handles", "unit": "item", "qtyFrom": 12, "place": "Every door and drawer"},
+      {"id": "sink", "group": "Sink & appliances", "name": "Sink", "unit": "item", "qtyFrom": 1, "place": "Under or by the window"},
+      {"id": "tap", "group": "Sink & appliances", "name": "Tap", "unit": "item", "qtyFrom": 1, "place": "At the sink"},
+      {"id": "hob", "group": "Sink & appliances", "name": "Hob", "unit": "item", "qtyFrom": 1, "place": "In the worktop"},
+      {"id": "oven", "group": "Sink & appliances", "name": "Oven", "unit": "item", "qtyFrom": 1, "place": "Under the hob or in a tall unit"},
+      {"id": "hood", "group": "Sink & appliances", "name": "Cooker hood", "unit": "item", "qtyFrom": 1, "place": "Above the hob"},
+      {"id": "fridge", "group": "Sink & appliances", "name": "Fridge freezer", "unit": "item", "qtyFrom": 1, "place": "Tall unit or freestanding"},
+      {"id": "dishwasher", "group": "Sink & appliances", "name": "Dishwasher", "unit": "item", "qtyFrom": 1, "place": "Next to the sink"},
+      {"id": "flooring", "group": "Floor & walls", "name": "Flooring", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "paint", "group": "Floor & walls", "name": "Wall paint", "unit": "m²", "qtyFrom": null, "place": "Walls not covered by units", "hint": "wipeable kitchen paint"},
+      {"id": "pendants", "group": "Lighting", "name": "Pendant lights", "unit": "item", "qtyFrom": 2, "place": "Over the island or table"},
+      {"id": "downlights", "group": "Lighting", "name": "Ceiling lights", "unit": "item", "qtyFrom": 1, "place": "Ceiling"},
+      {"id": "under-lights", "group": "Lighting", "name": "Under-cabinet lights", "unit": "item", "qtyFrom": 1, "place": "Under the wall units"}
+    ]
+  },
+  "dining-room": {
+    "label": "Dining room",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "rug", "group": "Walls & floor", "name": "Rug", "unit": "item", "qtyFrom": 1, "place": "Under the table, 600 mm beyond it on each side"},
+      {"id": "table", "group": "Furniture", "name": "Dining table", "unit": "item", "qtyFrom": 1, "place": "Centre of the room"},
+      {"id": "chairs", "group": "Furniture", "name": "Dining chairs", "unit": "item", "qtyFrom": 4, "place": "Around the table"},
+      {"id": "sideboard", "group": "Furniture", "name": "Sideboard", "unit": "item", "qtyFrom": 1, "place": "Against the longest wall"},
+      {"id": "window", "group": "Windows", "name": "Curtains or blinds", "unit": "item", "qtyFrom": 1, "place": "Main window"},
+      {"id": "pendant", "group": "Lighting", "name": "Pendant over the table", "unit": "item", "qtyFrom": 1, "place": "Centred over the table, about 750 mm above it"},
+      {"id": "wall-lights", "group": "Lighting", "name": "Wall or lamp lighting", "unit": "item", "qtyFrom": 1, "place": "Sideboard or walls"},
+      {"id": "art", "group": "Finishing touches", "name": "Art or mirror", "unit": "item", "qtyFrom": 1, "place": "Above the sideboard"}
+    ]
+  },
+  "home-office": {
+    "label": "Home office",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "rug", "group": "Walls & floor", "name": "Rug", "unit": "item", "qtyFrom": 1, "place": "Under the desk chair"},
+      {"id": "desk", "group": "Work", "name": "Desk", "unit": "item", "qtyFrom": 1, "place": "Facing or beside the window"},
+      {"id": "chair", "group": "Work", "name": "Desk chair", "unit": "item", "qtyFrom": 1, "place": "At the desk"},
+      {"id": "shelving", "group": "Storage", "name": "Shelving", "unit": "item", "qtyFrom": 1, "place": "Wall behind or beside the desk"},
+      {"id": "storage", "group": "Storage", "name": "Drawers or cabinet", "unit": "item", "qtyFrom": 1, "place": "Under or beside the desk"},
+      {"id": "window", "group": "Windows", "name": "Blinds", "unit": "item", "qtyFrom": 1, "place": "Main window, to cut screen glare"},
+      {"id": "ceiling-light", "group": "Lighting", "name": "Ceiling light", "unit": "item", "qtyFrom": 1, "place": "Ceiling"},
+      {"id": "desk-lamp", "group": "Lighting", "name": "Desk lamp", "unit": "item", "qtyFrom": 1, "place": "On the desk"},
+      {"id": "art", "group": "Finishing touches", "name": "Art or pinboard", "unit": "item", "qtyFrom": 1, "place": "Above the desk"},
+      {"id": "plants", "group": "Finishing touches", "name": "Plants", "unit": "item", "qtyFrom": 1, "place": "By the window"}
+    ]
+  },
+  "hallway": {
+    "label": "Hallway",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls", "hint": "a hard-wearing, wipeable finish"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "runner", "group": "Walls & floor", "name": "Runner", "unit": "item", "qtyFrom": 1, "place": "Along the hall"},
+      {"id": "console", "group": "Furniture & storage", "name": "Console table", "unit": "item", "qtyFrom": 1, "place": "By the front door"},
+      {"id": "coats", "group": "Furniture & storage", "name": "Coat storage", "unit": "item", "qtyFrom": 1, "place": "Near the front door"},
+      {"id": "shoes", "group": "Furniture & storage", "name": "Shoe storage", "unit": "item", "qtyFrom": 1, "place": "Near the front door"},
+      {"id": "mirror", "group": "Finishing touches", "name": "Mirror", "unit": "item", "qtyFrom": 1, "place": "Above the console"},
+      {"id": "ceiling-light", "group": "Lighting", "name": "Ceiling lights", "unit": "item", "qtyFrom": 1, "place": "Ceiling"}
+    ]
+  },
+  "kids-room": {
+    "label": "Child's bedroom",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls", "hint": "wipeable finish"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring or carpet", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "rug", "group": "Walls & floor", "name": "Play rug", "unit": "item", "qtyFrom": 1, "place": "Centre of the room"},
+      {"id": "bed", "group": "Furniture", "name": "Bed", "unit": "item", "qtyFrom": 1, "place": "Against a wall"},
+      {"id": "mattress", "group": "Furniture", "name": "Mattress", "unit": "item", "qtyFrom": 1, "place": "On the bed"},
+      {"id": "storage", "group": "Furniture", "name": "Toy and clothes storage", "unit": "item", "qtyFrom": 1, "place": "Low, within reach"},
+      {"id": "desk", "group": "Furniture", "name": "Desk or play table", "unit": "item", "qtyFrom": 1, "place": "By the window"},
+      {"id": "window", "group": "Windows", "name": "Blackout curtains or blinds", "unit": "item", "qtyFrom": 1, "place": "Main window"},
+      {"id": "ceiling-light", "group": "Lighting", "name": "Ceiling light", "unit": "item", "qtyFrom": 1, "place": "Ceiling"},
+      {"id": "night-light", "group": "Lighting", "name": "Bedside or night light", "unit": "item", "qtyFrom": 1, "place": "By the bed"},
+      {"id": "wall-decor", "group": "Finishing touches", "name": "Wall decoration", "unit": "item", "qtyFrom": 1, "place": "Above the bed"}
+    ]
+  },
+  "other": {
+    "label": "Other room",
+    "elements": [
+      {"id": "paint", "group": "Walls & floor", "name": "Wall paint", "unit": "m²", "qtyFrom": "walls", "place": "All walls"},
+      {"id": "flooring", "group": "Walls & floor", "name": "Flooring", "unit": "m²", "qtyFrom": "floor", "waste": 10, "place": "Whole floor"},
+      {"id": "furniture", "group": "Furniture", "name": "Main furniture", "unit": "item", "qtyFrom": 1, "place": ""},
+      {"id": "storage", "group": "Furniture", "name": "Storage", "unit": "item", "qtyFrom": 1, "place": ""},
+      {"id": "window", "group": "Windows", "name": "Curtains or blinds", "unit": "item", "qtyFrom": 1, "place": "Main window"},
+      {"id": "lighting", "group": "Lighting", "name": "Lighting", "unit": "item", "qtyFrom": 1, "place": "Ceiling"},
+      {"id": "accessories", "group": "Finishing touches", "name": "Accessories", "unit": "item", "qtyFrom": 1, "place": ""}
+    ]
+  }
+}

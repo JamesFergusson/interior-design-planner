@@ -1,0 +1,17 @@
+[
+  {"id": "uk-living", "request": "Help me plan my living room makeover.",
+   "answers": "Living room at 12 Mill Lane, Cambridge. 4.8 m by 3.6 m, ceiling 2.5 m. Warm white walls, olive green, walnut and aged brass; calm and bright. We're keeping our grey sofa. Budget about £6,000, buying in the UK. Door in the corner of the long wall, bay window opposite, chimney breast with alcoves on the end wall.",
+   "expect": {"type": "living-room", "currency": "GBP", "units": "metric", "must_drop_or_pick": "sofa", "min_parts": 8}},
+  {"id": "us-bedroom", "request": "I want to make our bedroom calmer. Can you set up a planner?",
+   "answers": "Primary bedroom. About 12 ft by 11 ft, 8 ft ceiling. Soft blues, white and pale oak. $3,000 budget, we're in the US and like West Elm and Target. Not sure about anything else.",
+   "expect": {"type": "bedroom", "currency": "USD", "units": "imperial", "min_parts": 6}},
+  {"id": "uk-bathroom-scope", "request": "Plan our small bathroom refresh.",
+   "answers": "Family bathroom, 2.1 m by 1.7 m, ceiling 2.4 m, bath along the 1.7 m end wall with a shower over it. Only want to change: wall tiles around the bath, floor tiles, vanity, basin tap, mirror and lighting. Dark green and terrazzo, brushed brass. £3,500, UK.",
+   "expect": {"type": "bathroom", "currency": "GBP", "max_parts": 8, "tile_qty_set": true}},
+  {"id": "fr-kitchen-unknown", "request": "Can you help me plan a quick kitchen refresh?",
+   "answers": "Kitchen in Lyon, France. I don't know the measurements. Only paint, a new splashback, cabinet handles and some new lights. Budget 1,500 euros. Something warm: terracotta and cream.",
+   "expect": {"type": "kitchen", "currency": "EUR", "max_parts": 7, "unknown_size": true}},
+  {"id": "newbie-office", "request": "help me plan my home office",
+   "answers": "Don't know really. It's the box room in our London flat. Small. Maybe £800? I just want it to feel less cluttered.",
+   "expect": {"type": "home-office", "currency": "GBP", "min_parts": 5}}
+]

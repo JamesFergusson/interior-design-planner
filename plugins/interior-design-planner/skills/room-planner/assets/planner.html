@@ -1,0 +1,1180 @@
+<title>Room Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="room-planner-version" content="0.1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a fit-out schedule. Paint-chip strip, sticky budget bar, room brief, one row of option cards per part of the room, shopping schedule, then visualise and backup. */
+:root{
+  --ground:#eff0ed; --panel:#fbfbf9; --ink:#1f2422; --quiet:#5d6661; --rule:#d5d9d4;
+  --accent:#2e4f62; --accent-ink:#fbfbf9; --accent-tint:#e2eaee; --brass:#7a5c26;
+  --good:#2f6b4a; --warn:#9a6a14; --bad:#a23b2c;
+  --display:"Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body:"Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#151918; --panel:#1d2220; --ink:#e6eae7; --quiet:#9aa39e; --rule:#323936;
+  --accent:#8db6cc; --accent-ink:#151918; --accent-tint:#22323b; --brass:#cfa85e;
+  --good:#6fbf91; --warn:#d9a748; --bad:#e27b6a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ground:#151918; --panel:#1d2220; --ink:#e6eae7; --quiet:#9aa39e; --rule:#323936;
+  --accent:#8db6cc; --accent-ink:#151918; --accent-tint:#22323b; --brass:#cfa85e;
+  --good:#6fbf91; --warn:#d9a748; --bad:#e27b6a; color-scheme:dark}
+body{background:var(--ground);color:var(--ink);font:16px/1.5 var(--body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ground)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px;display:grid;gap:28px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:700}
+h2{font-size:1.35rem;font-weight:700}
+h3{font-size:1.05rem;font-weight:500}
+a{color:var(--accent)}
+p{margin:0}
+.label{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet);font-weight:600}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{border:1px solid var(--rule);background:var(--ground);border-radius:6px;padding:7px 10px;min-width:0}
+textarea{resize:vertical}
+
+/* Masthead: paint chips from the scheme */
+.masthead{padding-top:28px;display:grid;gap:10px}
+.chips{display:flex;gap:4px;height:44px}
+.chip-swatch{flex:1;border-radius:3px;display:flex;align-items:flex-end;padding:4px 6px;font:500 .66rem var(--mono);min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.masthead .lead{color:var(--quiet);max-width:68ch}
+
+/* Sticky summary */
+.summary{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center}
+.stat{display:grid;gap:2px;min-width:0}
+.stat b{font-family:var(--mono);font-size:1.2rem;font-weight:500;font-variant-numeric:tabular-nums}
+.budget{display:grid;gap:4px;min-width:180px;flex:1 1 200px;max-width:320px}
+.bar{height:8px;border-radius:999px;background:var(--accent-tint);overflow:hidden}
+.bar span{display:block;height:100%;background:var(--accent);border-radius:999px;max-width:100%}
+.bar.over span{background:var(--bad)}
+.budget small{color:var(--quiet);font-size:.82rem}
+.summary .spacer{flex:1 1 0}
+
+/* Panels and buttons */
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:18px;display:grid;gap:14px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.hint{color:var(--quiet);font-size:.9rem}
+.btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:6px;padding:8px 14px;font-weight:600;line-height:1.3}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.brass{border-color:var(--brass);background:var(--brass);color:var(--panel)}
+.btn.small{padding:4px 10px;font-size:.88rem}
+.btn:disabled{opacity:.5;cursor:default}
+.link-btn{border:0;background:transparent;color:var(--accent);padding:2px 4px;font-size:.88rem;text-decoration:underline;text-underline-offset:2px}
+.link-btn.danger{color:var(--bad)}
+.row-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.status-line{font-size:.9rem;color:var(--quiet);min-height:1.4em}
+
+/* Setup */
+.setup{max-width:760px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.field{display:grid;gap:4px;min-width:0}
+.field span{font-size:.85rem;color:var(--quiet);font-weight:600}
+.field.wide{grid-column:1/-1}
+.error{color:var(--bad);font-size:.9rem}
+
+/* Room brief */
+.brief{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,360px));gap:14px;align-items:start}
+.brief figure{margin:0;display:grid;gap:6px;min-width:0}
+.brief img{width:100%;max-width:100%;border-radius:6px;border:1px solid var(--rule);background:var(--accent-tint)}
+.brief figcaption{font-size:.82rem;color:var(--quiet)}
+.facts{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:.92rem}
+.facts b{font-weight:600}
+.brief-text{max-width:72ch}
+
+/* Inbox */
+.inbox-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px}
+.inbox-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.inbox-list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--rule);border-radius:6px}
+.inbox-list .url{overflow-wrap:anywhere;font-size:.9rem}
+.inbox-list .sub{color:var(--quiet);font-size:.82rem}
+.pill{font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;border:1px solid currentColor;white-space:nowrap}
+.pill.new{color:var(--quiet)} .pill.working{color:var(--warn)} .pill.done{color:var(--good)} .pill.queued{color:var(--accent)} .pill.failed{color:var(--bad)}
+
+/* Toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.toggle{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:4px 12px;font-size:.88rem}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip.apply{border-style:dashed}
+
+/* Parts of the room */
+#elements{display:grid;gap:28px}
+.group{display:grid;gap:12px}
+.group > h2{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.group > h2 small{font:500 .8rem var(--mono);color:var(--quiet)}
+.element{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;display:grid;gap:10px;min-width:0}
+.element-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
+.element-head .choice{color:var(--quiet);font-size:.9rem}
+.element-head .choice.set{color:var(--good)}
+.element-head .tools{margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.qty{display:inline-flex;align-items:center;gap:6px;font-size:.88rem;color:var(--quiet)}
+.qty input{width:84px;padding:3px 8px;font-family:var(--mono)}
+.place{color:var(--quiet);font-size:.86rem}
+.options{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(220px,250px);gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+.opt{position:relative;scroll-snap-align:start;border:1px solid var(--rule);border-radius:8px;background:var(--ground);display:grid;grid-template-rows:1fr auto;overflow:hidden;min-width:0}
+.opt.is-chosen{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.opt.rejected{opacity:.62}
+.pick{display:grid;grid-template-rows:auto 1fr;cursor:pointer;min-width:0}
+.pick input{position:absolute;opacity:0;pointer-events:none}
+.opt:has(.pick input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.thumb{aspect-ratio:4/3;max-width:100%;background:var(--accent-tint);display:grid;place-items:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb span{font:500 .75rem var(--mono);color:var(--quiet)}
+.opt-body{padding:10px 12px;display:grid;gap:4px;align-content:start;min-width:0}
+.opt-name{font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.opt-sup{color:var(--quiet);font-size:.85rem}
+.opt-price{font:500 .88rem var(--mono);font-variant-numeric:tabular-nums}
+.opt-price small{font-family:var(--body);color:var(--quiet);font-size:.82rem}
+.opt-spec{font-size:.82rem;color:var(--quiet);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.opt-note{font-size:.82rem;overflow-wrap:anywhere}
+.opt-link{font-size:.84rem}
+.opt-actions{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:6px 10px 10px;border-top:1px solid var(--rule)}
+.opt-actions select{padding:2px 6px;font-size:.82rem}
+.chosen-mark{position:absolute;top:8px;left:8px;background:var(--accent);color:var(--accent-ink);font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.add-card{border:1px dashed var(--rule);border-radius:8px;background:transparent;display:grid;place-items:center;gap:6px;min-height:180px;color:var(--accent);font-weight:600;scroll-snap-align:start}
+.empty{color:var(--quiet);font-size:.9rem}
+
+/* Schedule */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet);font-weight:600}
+td.r,th.r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.group-row td{font-family:var(--display);font-weight:700;padding-top:16px;border-bottom:0}
+tr.unset td{color:var(--quiet)}
+tfoot td{font-weight:600;border-bottom:0;border-top:2px solid var(--ink)}
+
+/* Visualise */
+.steps{margin:0;padding-left:1.2em;display:grid;gap:6px;max-width:72ch}
+#gpt-prompt{width:100%;box-sizing:border-box;min-height:220px;font:13px/1.5 var(--mono)}
+details summary{cursor:pointer;color:var(--accent);font-weight:600}
+
+/* Dialogs and toast */
+dialog{border:1px solid var(--rule);border-radius:12px;background:var(--panel);color:var(--ink);padding:20px;width:min(560px,calc(100vw - 32px));box-sizing:border-box}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog form{display:grid;gap:12px}
+dialog h2{font-size:1.2rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;background:var(--ink);color:var(--ground);border-radius:8px;padding:10px 14px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px);box-shadow:0 4px 18px rgba(0,0,0,.2)}
+.toast button{border:0;background:transparent;color:inherit;font-weight:700;text-decoration:underline}
+.notice{border:1px solid var(--rule);border-radius:10px;padding:18px;background:var(--panel);color:var(--quiet)}
+
+@media (max-width:760px){
+  .inbox-form{grid-template-columns:1fr}
+  .element-head .tools{margin-left:0}
+  .summary{position:static;gap:10px 18px}
+  .summary .spacer{display:none}
+  .budget{flex-basis:100%;max-width:none}
+}
+@media (prefers-reduced-motion:no-preference){.opt{transition:box-shadow .15s,border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="chips" id="chips" aria-hidden="true"></div>
+    <span class="label" id="eyebrow">Room planner</span>
+    <h1 id="room-title">Room planner</h1>
+    <p class="lead" id="lead">Every option for each part of the room in one place. Pick one per part and the shopping schedule at the bottom keeps the total.</p>
+  </header>
+
+  <div class="notice" id="loading">Loading your planner…</div>
+
+  <!-- First-run setup -->
+  <section class="panel setup" id="setup" hidden aria-labelledby="setup-h">
+    <h2 id="setup-h">Set up your room</h2>
+    <p class="hint">Fill in what you know; everything can be changed later. If you're in Claude, you can also just say “set up my room planner” and Claude will ask you the questions and find starting options.</p>
+    <form id="setup-form" class="form-grid" novalidate>
+      <label class="field wide"><span>Name</span><input id="su-name" required placeholder="e.g. Living room, 12 Mill Lane"></label>
+      <label class="field"><span>Room type</span><select id="su-type"></select></label>
+      <label class="field"><span>Measure in</span><select id="su-units"><option value="metric">Metres</option><option value="imperial">Feet</option></select></label>
+      <label class="field"><span>Currency</span><select id="su-currency"><option value="GBP">£ GBP</option><option value="EUR">€ EUR</option><option value="USD">$ USD</option></select></label>
+      <label class="field"><span id="su-len-l">Length (m)</span><input id="su-len" inputmode="decimal" placeholder="4.2"></label>
+      <label class="field"><span id="su-wid-l">Width (m)</span><input id="su-wid" inputmode="decimal" placeholder="3.6"></label>
+      <label class="field"><span id="su-hei-l">Ceiling height (m)</span><input id="su-hei" inputmode="decimal" placeholder="2.4"></label>
+      <label class="field"><span>Budget (optional)</span><input id="su-budget" inputmode="decimal" placeholder="5000"></label>
+      <label class="field wide"><span>Look and feel</span><input id="su-scheme" placeholder="e.g. warm white, olive green, walnut and brass; calm and bright"></label>
+      <p class="error wide" id="su-error" role="alert"></p>
+      <div class="row-btns wide"><button class="btn" type="submit">Create planner</button></div>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <div style="display:grid;gap:28px">
+      <section class="summary" aria-label="Summary">
+        <div class="stat"><span class="label">Estimated total</span><b id="total">0</b></div>
+        <div class="budget" id="budget-box" hidden><span class="label">Budget</span><div class="bar" id="bar"><span id="bar-fill"></span></div><small id="budget-text"></small></div>
+        <div class="stat"><span class="label">Chosen</span><b id="chosen">0 of 0</b></div>
+        <div class="stat"><span class="label">No price yet</span><b id="unpriced">0</b></div>
+        <span class="spacer"></span>
+        <a class="btn brass" id="gpt-top" href="https://chatgpt.com/" target="_blank" rel="noopener">Visualise in ChatGPT ↗</a>
+      </section>
+
+      <section class="panel" id="room" aria-labelledby="room-h">
+        <div class="panel-head"><h2 id="room-h">Room brief</h2><button class="btn ghost small" id="edit-room" type="button">Edit room details</button></div>
+        <div class="facts" id="facts"></div>
+        <p class="brief-text" id="room-text"></p>
+        <div class="brief" id="brief-figs"></div>
+      </section>
+
+      <section class="panel" id="inbox" aria-labelledby="inbox-h">
+        <div class="panel-head"><h2 id="inbox-h">Link inbox</h2><button class="btn" id="update-btn" type="button">Update</button></div>
+        <p class="hint" id="inbox-mode">Paste a product link, then press Update.</p>
+        <form class="inbox-form" id="inbox-form" novalidate>
+          <input id="in-url" type="url" placeholder="https://… product page" aria-label="Product link">
+          <select id="in-el" aria-label="Which part of the room"><option value="">Part of room (if known)</option></select>
+          <input id="in-note" type="text" placeholder="What caught your eye" aria-label="Note">
+          <button class="btn ghost" type="submit">Add link</button>
+        </form>
+        <ul class="inbox-list" id="inbox-list"></ul>
+        <p class="status-line" id="inbox-status" role="status"></p>
+      </section>
+
+      <div class="toolbar">
+        <div class="toggle" id="filters" aria-label="Show options"></div>
+        <div class="toggle" id="presets" aria-label="Apply a set of choices"></div>
+      </div>
+
+      <main id="elements" aria-live="polite"></main>
+      <div class="row-btns"><button class="btn ghost" id="add-part" type="button">+ Add a part of the room</button></div>
+
+      <section class="panel" aria-labelledby="sched-h">
+        <div class="panel-head">
+          <h2 id="sched-h">Shopping schedule</h2>
+          <div class="row-btns"><button class="btn ghost small" id="copy-btn" type="button">Copy table</button><button class="btn ghost small" id="csv-btn" type="button" hidden>Save as spreadsheet (.csv)</button></div>
+        </div>
+        <p class="hint">Your current choice for every part. Costs use the quantity shown, rounded up to whole packs where a product is sold in packs. Prices are from when each option was added; check them before ordering.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part</th><th>Chosen</th><th>Supplier</th><th class="r">Quantity</th><th class="r">Est. cost</th></tr></thead>
+            <tbody id="sched-body"></tbody>
+            <tfoot><tr><td colspan="4">Total of priced items</td><td class="r" id="sched-total">0</td></tr></tfoot>
+          </table>
+        </div>
+        <p class="status-line" id="copy-status" role="status"></p>
+      </section>
+
+      <section class="panel" id="gpt" aria-labelledby="gpt-h">
+        <h2 id="gpt-h">See the room</h2>
+        <ol class="steps">
+          <li><b>Open in ChatGPT</b> starts a new chat with a description of the room and every product you've chosen. The text is also copied, so you can paste it into any image tool if the chat opens empty.</li>
+          <li>For closer matches, save the <b>reference board</b> (floor plan plus a photo of each chosen product) and add it to the chat.</li>
+        </ol>
+        <div class="row-btns">
+          <a class="btn brass" id="gpt-open" href="https://chatgpt.com/" target="_blank" rel="noopener">Open in ChatGPT ↗</a>
+          <button class="btn ghost" id="gpt-copy" type="button">Copy prompt</button>
+          <button class="btn ghost" id="gpt-board" type="button" hidden>Save reference board</button>
+        </div>
+        <p class="status-line" id="gpt-status" role="status"></p>
+        <details><summary>See or edit the prompt</summary><p class="hint">Edits are used by both buttons until you change a choice.</p><textarea id="gpt-prompt" aria-label="Prompt"></textarea></details>
+      </section>
+
+      <section class="panel" id="backup" aria-labelledby="backup-h">
+        <h2 id="backup-h">Backup</h2>
+        <p class="hint">Save a copy of the whole planner to your computer, or put a saved copy back. Photos stay in this planner; a backup restored elsewhere keeps the text but not the photos.</p>
+        <div class="row-btns">
+          <button class="btn ghost" id="backup-save" type="button" hidden>Save backup</button>
+          <label class="btn ghost" for="backup-file">Restore from backup…</label>
+          <input id="backup-file" type="file" accept=".json,application/json" hidden>
+        </div>
+        <div id="restore-confirm" hidden class="row-btns"><span id="restore-text"></span><button class="btn small" id="restore-go" type="button">Replace planner with backup</button><button class="link-btn" id="restore-cancel" type="button">Cancel</button></div>
+        <p class="status-line" id="backup-status" role="status"></p>
+      </section>
+      <p class="hint">Room Planner <span id="ver"></span></p>
+    </div>
+  </div>
+</div>
+
+<!-- Add / edit an option -->
+<dialog id="opt-dialog" aria-labelledby="od-h">
+  <form id="opt-form" method="dialog" novalidate>
+    <h2 id="od-h">Add an option</h2>
+    <label class="field"><span>Product name</span><input id="od-name" required></label>
+    <div class="form-grid">
+      <label class="field"><span>Part of the room</span><select id="od-el"></select></label>
+      <label class="field"><span>Shop</span><input id="od-sup"></label>
+    </div>
+    <label class="field"><span>Link to product page</span><input id="od-url" type="url" placeholder="https://…"></label>
+    <div class="form-grid">
+      <label class="field"><span>Price</span><input id="od-price" inputmode="decimal" placeholder="249.99"></label>
+      <label class="field"><span>Price is for</span><select id="od-per"></select></label>
+      <label class="field" id="od-covers-f"><span id="od-covers-l">One pack covers</span><input id="od-covers" inputmode="decimal"></label>
+    </div>
+    <label class="field"><span>Size, colour, finish</span><input id="od-spec"></label>
+    <label class="field"><span>Notes</span><input id="od-note"></label>
+    <label class="field" id="od-photo-f"><span>Photo (optional)</span><input id="od-photo" type="file" accept="image/*"></label>
+    <p class="error" id="od-error" role="alert"></p>
+    <div class="row-btns"><button class="btn" id="od-save" value="save">Save</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div>
+  </form>
+</dialog>
+
+<!-- Edit the room -->
+<dialog id="room-dialog" aria-labelledby="rd-h">
+  <form id="room-form" method="dialog" novalidate>
+    <h2 id="rd-h">Room details</h2>
+    <label class="field"><span>Name</span><input id="rd-name"></label>
+    <div class="form-grid">
+      <label class="field"><span id="rd-len-l">Length</span><input id="rd-len" inputmode="decimal"></label>
+      <label class="field"><span id="rd-wid-l">Width</span><input id="rd-wid" inputmode="decimal"></label>
+      <label class="field"><span id="rd-hei-l">Ceiling height</span><input id="rd-hei" inputmode="decimal"></label>
+      <label class="field"><span>Budget</span><input id="rd-budget" inputmode="decimal"></label>
+    </div>
+    <label class="field"><span>Look and feel</span><textarea id="rd-scheme" rows="2"></textarea></label>
+    <label class="field"><span>Layout: where the door, windows and main pieces go</span><textarea id="rd-layout" rows="3"></textarea></label>
+    <div class="form-grid" id="rd-photos">
+      <label class="field"><span>Floor plan image</span><input id="rd-plan" type="file" accept="image/*"></label>
+      <label class="field"><span>Photo of the room now</span><input id="rd-photo" type="file" accept="image/*"></label>
+    </div>
+    <p class="error" id="rd-error" role="alert"></p>
+    <div class="row-btns"><button class="btn" value="save">Save</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div>
+  </form>
+</dialog>
+
+<!-- Add a part -->
+<dialog id="part-dialog" aria-labelledby="pd-h">
+  <form id="part-form" method="dialog" novalidate>
+    <h2 id="pd-h">Add a part of the room</h2>
+    <label class="field"><span>Name</span><input id="pd-name" placeholder="e.g. Window seat cushion"></label>
+    <div class="form-grid">
+      <label class="field"><span>Section</span><input id="pd-group" list="pd-groups"></label>
+      <label class="field"><span>Measured in</span><select id="pd-unit"></select></label>
+      <label class="field"><span>Quantity</span><input id="pd-qty" inputmode="decimal" value="1"></label>
+    </div>
+    <datalist id="pd-groups"></datalist>
+    <label class="field"><span>Where it goes</span><input id="pd-place"></label>
+    <p class="error" id="pd-error" role="alert"></p>
+    <div class="row-btns"><button class="btn" value="save">Add</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div>
+  </form>
+</dialog>
+
+<input id="photo-input" type="file" accept="image/*" hidden>
+<div class="toast" id="toast" hidden role="status"><span id="toast-text"></span><button id="toast-undo" type="button" hidden>Undo</button></div>
+
+<script>
+/* ROOM_TYPES_START */
+const ROOM_TYPES = {"living-room":{"label":"Living room","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls","hint":"a soft neutral that suits the scheme"},{"id":"flooring","group":"Walls & floor","name":"Flooring","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"rug","group":"Walls & floor","name":"Rug","unit":"item","qtyFrom":1,"place":"Under the front legs of the sofa and chairs"},{"id":"sofa","group":"Seating","name":"Sofa","unit":"item","qtyFrom":1,"place":"Facing the focal wall"},{"id":"armchair","group":"Seating","name":"Armchair","unit":"item","qtyFrom":1,"place":"Angled towards the sofa"},{"id":"coffee-table","group":"Tables & storage","name":"Coffee table","unit":"item","qtyFrom":1,"place":"In front of the sofa, about 450 mm away"},{"id":"side-table","group":"Tables & storage","name":"Side table","unit":"item","qtyFrom":1,"place":"Beside the sofa or armchair"},{"id":"shelving","group":"Tables & storage","name":"Shelving or bookcase","unit":"item","qtyFrom":1,"place":"Alcove or side wall"},{"id":"media-unit","group":"Tables & storage","name":"TV or media unit","unit":"item","qtyFrom":1,"place":"Under the TV"},{"id":"window","group":"Windows","name":"Curtains or blinds","unit":"item","qtyFrom":1,"place":"Main window"},{"id":"ceiling-light","group":"Lighting","name":"Ceiling light","unit":"item","qtyFrom":1,"place":"Centre of the ceiling"},{"id":"floor-lamp","group":"Lighting","name":"Floor lamp","unit":"item","qtyFrom":1,"place":"Behind or beside the armchair"},{"id":"table-lamp","group":"Lighting","name":"Table lamp","unit":"item","qtyFrom":1,"place":"On the side table"},{"id":"cushions","group":"Finishing touches","name":"Cushions and throws","unit":"item","qtyFrom":1,"place":"Sofa and armchair"},{"id":"art","group":"Finishing touches","name":"Art or mirror","unit":"item","qtyFrom":1,"place":"Above the sofa"},{"id":"plants","group":"Finishing touches","name":"Plants and planters","unit":"item","qtyFrom":1,"place":"By the window"}]},"bedroom":{"label":"Bedroom","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls"},{"id":"feature-wall","group":"Walls & floor","name":"Feature wall (paint, panelling or wallpaper)","unit":"item","qtyFrom":1,"place":"Wall behind the bed"},{"id":"flooring","group":"Walls & floor","name":"Flooring or carpet","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"rug","group":"Walls & floor","name":"Rug","unit":"item","qtyFrom":1,"place":"Under the lower two-thirds of the bed"},{"id":"bed","group":"Bed","name":"Bed frame","unit":"item","qtyFrom":1,"place":"Headboard against the main wall"},{"id":"mattress","group":"Bed","name":"Mattress","unit":"item","qtyFrom":1,"place":"On the bed frame"},{"id":"bedding","group":"Bed","name":"Bedding","unit":"item","qtyFrom":1,"place":"Bed"},{"id":"bedside","group":"Storage","name":"Bedside tables","unit":"item","qtyFrom":2,"place":"Either side of the bed"},{"id":"wardrobe","group":"Storage","name":"Wardrobe","unit":"item","qtyFrom":1,"place":"Side wall"},{"id":"drawers","group":"Storage","name":"Chest of drawers","unit":"item","qtyFrom":1,"place":"Opposite the bed"},{"id":"window","group":"Windows","name":"Curtains or blackout blinds","unit":"item","qtyFrom":1,"place":"Main window"},{"id":"ceiling-light","group":"Lighting","name":"Ceiling light","unit":"item","qtyFrom":1,"place":"Centre of the ceiling"},{"id":"bedside-lights","group":"Lighting","name":"Bedside lights","unit":"item","qtyFrom":2,"place":"On the bedside tables or wall-mounted"},{"id":"mirror","group":"Finishing touches","name":"Mirror","unit":"item","qtyFrom":1,"place":"Above the drawers or full length"},{"id":"art","group":"Finishing touches","name":"Art","unit":"item","qtyFrom":1,"place":"Above the bed"}]},"bathroom":{"label":"Bathroom","elements":[{"id":"tile-shower","group":"Tiles & walls","name":"Shower or bath wall tile","unit":"m²","qtyFrom":null,"waste":10,"place":"Shower or bath walls, full height"},{"id":"tile-wall","group":"Tiles & walls","name":"Other wall tile","unit":"m²","qtyFrom":null,"waste":10,"place":"Behind the basin and WC"},{"id":"floor","group":"Tiles & walls","name":"Floor tile","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"paint","group":"Tiles & walls","name":"Paint","unit":"m²","qtyFrom":null,"place":"Untiled walls and ceiling","hint":"white or soft neutral, moisture-resistant bathroom paint"},{"id":"bath","group":"Bath & shower","name":"Bath","unit":"item","qtyFrom":1,"place":"Along the longest wall"},{"id":"enclosure","group":"Bath & shower","name":"Shower screen or enclosure","unit":"item","qtyFrom":1,"place":"Open side of the shower"},{"id":"tray","group":"Bath & shower","name":"Shower tray","unit":"item","qtyFrom":1,"place":"Shower area","hint":"white, low profile"},{"id":"shower-set","group":"Bath & shower","name":"Shower valve and heads","unit":"item","qtyFrom":1,"place":"Shower wall"},{"id":"vanity","group":"Basin & WC","name":"Vanity and basin","unit":"item","qtyFrom":1,"place":"Facing the door"},{"id":"basin-tap","group":"Basin & WC","name":"Basin tap","unit":"item","qtyFrom":1,"place":"On the basin"},{"id":"wc","group":"Basin & WC","name":"WC","unit":"item","qtyFrom":1,"place":"Beside the vanity","hint":"plain white close-coupled"},{"id":"mirror","group":"Basin & WC","name":"Mirror or cabinet","unit":"item","qtyFrom":1,"place":"Above the basin"},{"id":"towel-rail","group":"Heating, lighting & air","name":"Heated towel rail","unit":"item","qtyFrom":1,"place":"Near the shower or bath"},{"id":"fan","group":"Heating, lighting & air","name":"Extractor fan","unit":"item","qtyFrom":1,"place":"Ceiling, near the shower","hint":"small white ceiling fan"},{"id":"lights","group":"Heating, lighting & air","name":"Lighting","unit":"item","qtyFrom":1,"place":"Ceiling, rated for bathrooms","hint":"small white recessed downlights"},{"id":"accessories","group":"Finishing touches","name":"Accessories","unit":"item","qtyFrom":1,"place":"Toilet roll holder, towel ring, hooks"}]},"kitchen":{"label":"Kitchen","elements":[{"id":"units","group":"Units & surfaces","name":"Kitchen units","unit":"item","qtyFrom":1,"place":"Main run"},{"id":"worktop","group":"Units & surfaces","name":"Worktop","unit":"m","qtyFrom":null,"waste":5,"place":"On top of the base units"},{"id":"splashback","group":"Units & surfaces","name":"Splashback","unit":"m²","qtyFrom":null,"waste":10,"place":"Between worktop and wall units"},{"id":"handles","group":"Units & surfaces","name":"Handles","unit":"item","qtyFrom":12,"place":"Every door and drawer"},{"id":"sink","group":"Sink & appliances","name":"Sink","unit":"item","qtyFrom":1,"place":"Under or by the window"},{"id":"tap","group":"Sink & appliances","name":"Tap","unit":"item","qtyFrom":1,"place":"At the sink"},{"id":"hob","group":"Sink & appliances","name":"Hob","unit":"item","qtyFrom":1,"place":"In the worktop"},{"id":"oven","group":"Sink & appliances","name":"Oven","unit":"item","qtyFrom":1,"place":"Under the hob or in a tall unit"},{"id":"hood","group":"Sink & appliances","name":"Cooker hood","unit":"item","qtyFrom":1,"place":"Above the hob"},{"id":"fridge","group":"Sink & appliances","name":"Fridge freezer","unit":"item","qtyFrom":1,"place":"Tall unit or freestanding"},{"id":"dishwasher","group":"Sink & appliances","name":"Dishwasher","unit":"item","qtyFrom":1,"place":"Next to the sink"},{"id":"flooring","group":"Floor & walls","name":"Flooring","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"paint","group":"Floor & walls","name":"Wall paint","unit":"m²","qtyFrom":null,"place":"Walls not covered by units","hint":"wipeable kitchen paint"},{"id":"pendants","group":"Lighting","name":"Pendant lights","unit":"item","qtyFrom":2,"place":"Over the island or table"},{"id":"downlights","group":"Lighting","name":"Ceiling lights","unit":"item","qtyFrom":1,"place":"Ceiling"},{"id":"under-lights","group":"Lighting","name":"Under-cabinet lights","unit":"item","qtyFrom":1,"place":"Under the wall units"}]},"dining-room":{"label":"Dining room","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls"},{"id":"flooring","group":"Walls & floor","name":"Flooring","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"rug","group":"Walls & floor","name":"Rug","unit":"item","qtyFrom":1,"place":"Under the table, 600 mm beyond it on each side"},{"id":"table","group":"Furniture","name":"Dining table","unit":"item","qtyFrom":1,"place":"Centre of the room"},{"id":"chairs","group":"Furniture","name":"Dining chairs","unit":"item","qtyFrom":4,"place":"Around the table"},{"id":"sideboard","group":"Furniture","name":"Sideboard","unit":"item","qtyFrom":1,"place":"Against the longest wall"},{"id":"window","group":"Windows","name":"Curtains or blinds","unit":"item","qtyFrom":1,"place":"Main window"},{"id":"pendant","group":"Lighting","name":"Pendant over the table","unit":"item","qtyFrom":1,"place":"Centred over the table, about 750 mm above it"},{"id":"wall-lights","group":"Lighting","name":"Wall or lamp lighting","unit":"item","qtyFrom":1,"place":"Sideboard or walls"},{"id":"art","group":"Finishing touches","name":"Art or mirror","unit":"item","qtyFrom":1,"place":"Above the sideboard"}]},"home-office":{"label":"Home office","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls"},{"id":"flooring","group":"Walls & floor","name":"Flooring","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"rug","group":"Walls & floor","name":"Rug","unit":"item","qtyFrom":1,"place":"Under the desk chair"},{"id":"desk","group":"Work","name":"Desk","unit":"item","qtyFrom":1,"place":"Facing or beside the window"},{"id":"chair","group":"Work","name":"Desk chair","unit":"item","qtyFrom":1,"place":"At the desk"},{"id":"shelving","group":"Storage","name":"Shelving","unit":"item","qtyFrom":1,"place":"Wall behind or beside the desk"},{"id":"storage","group":"Storage","name":"Drawers or cabinet","unit":"item","qtyFrom":1,"place":"Under or beside the desk"},{"id":"window","group":"Windows","name":"Blinds","unit":"item","qtyFrom":1,"place":"Main window, to cut screen glare"},{"id":"ceiling-light","group":"Lighting","name":"Ceiling light","unit":"item","qtyFrom":1,"place":"Ceiling"},{"id":"desk-lamp","group":"Lighting","name":"Desk lamp","unit":"item","qtyFrom":1,"place":"On the desk"},{"id":"art","group":"Finishing touches","name":"Art or pinboard","unit":"item","qtyFrom":1,"place":"Above the desk"},{"id":"plants","group":"Finishing touches","name":"Plants","unit":"item","qtyFrom":1,"place":"By the window"}]},"hallway":{"label":"Hallway","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls","hint":"a hard-wearing, wipeable finish"},{"id":"flooring","group":"Walls & floor","name":"Flooring","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"runner","group":"Walls & floor","name":"Runner","unit":"item","qtyFrom":1,"place":"Along the hall"},{"id":"console","group":"Furniture & storage","name":"Console table","unit":"item","qtyFrom":1,"place":"By the front door"},{"id":"coats","group":"Furniture & storage","name":"Coat storage","unit":"item","qtyFrom":1,"place":"Near the front door"},{"id":"shoes","group":"Furniture & storage","name":"Shoe storage","unit":"item","qtyFrom":1,"place":"Near the front door"},{"id":"mirror","group":"Finishing touches","name":"Mirror","unit":"item","qtyFrom":1,"place":"Above the console"},{"id":"ceiling-light","group":"Lighting","name":"Ceiling lights","unit":"item","qtyFrom":1,"place":"Ceiling"}]},"kids-room":{"label":"Child's bedroom","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls","hint":"wipeable finish"},{"id":"flooring","group":"Walls & floor","name":"Flooring or carpet","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"rug","group":"Walls & floor","name":"Play rug","unit":"item","qtyFrom":1,"place":"Centre of the room"},{"id":"bed","group":"Furniture","name":"Bed","unit":"item","qtyFrom":1,"place":"Against a wall"},{"id":"mattress","group":"Furniture","name":"Mattress","unit":"item","qtyFrom":1,"place":"On the bed"},{"id":"storage","group":"Furniture","name":"Toy and clothes storage","unit":"item","qtyFrom":1,"place":"Low, within reach"},{"id":"desk","group":"Furniture","name":"Desk or play table","unit":"item","qtyFrom":1,"place":"By the window"},{"id":"window","group":"Windows","name":"Blackout curtains or blinds","unit":"item","qtyFrom":1,"place":"Main window"},{"id":"ceiling-light","group":"Lighting","name":"Ceiling light","unit":"item","qtyFrom":1,"place":"Ceiling"},{"id":"night-light","group":"Lighting","name":"Bedside or night light","unit":"item","qtyFrom":1,"place":"By the bed"},{"id":"wall-decor","group":"Finishing touches","name":"Wall decoration","unit":"item","qtyFrom":1,"place":"Above the bed"}]},"other":{"label":"Other room","elements":[{"id":"paint","group":"Walls & floor","name":"Wall paint","unit":"m²","qtyFrom":"walls","place":"All walls"},{"id":"flooring","group":"Walls & floor","name":"Flooring","unit":"m²","qtyFrom":"floor","waste":10,"place":"Whole floor"},{"id":"furniture","group":"Furniture","name":"Main furniture","unit":"item","qtyFrom":1,"place":""},{"id":"storage","group":"Furniture","name":"Storage","unit":"item","qtyFrom":1,"place":""},{"id":"window","group":"Windows","name":"Curtains or blinds","unit":"item","qtyFrom":1,"place":"Main window"},{"id":"lighting","group":"Lighting","name":"Lighting","unit":"item","qtyFrom":1,"place":"Ceiling"},{"id":"accessories","group":"Finishing touches","name":"Accessories","unit":"item","qtyFrom":1,"place":""}]}};
+/* ROOM_TYPES_END */
+</script>
+<script>
+(() => {
+  "use strict";
+  try { document.documentElement.lang = "en-GB"; } catch {}
+  const VERSION = "0.1.0";
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- pure helpers (also exercised by the test suite) ----------
+  const RP = (window.RoomPlanner = window.RoomPlanner || {});
+  const SYMBOL = { GBP: "£", EUR: "€", USD: "$" };
+  const UNIT_LABEL = { "item": "items", "m²": "m²", "m": "m", "L": "litres", "ft²": "sq ft", "ft": "ft" };
+  const IMPERIAL_UNIT = { "m²": "ft²", "m": "ft" };
+  const TO_IMPERIAL = { "m²": 10.7639, "m": 3.28084 };
+  const round1 = (x) => Math.round(x * 10) / 10;
+  const round2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
+  const isNum = (x) => typeof x === "number" && isFinite(x);
+  const PACK_UNITS = ["pack", "box", "tin", "can", "roll", "tile", "set", "pair"];
+  const posNum = (x) => isNum(x) && x > 0;
+
+  RP.areas = (room) => {
+    const L = (room && room.length_mm) / 1000, W = (room && room.width_mm) / 1000, H = (room && room.height_mm) / 1000;
+    if (!(posNum(L) && posNum(W))) return null;
+    const floor = L * W, perimeter = 2 * (L + W);
+    return { floor, ceiling: floor, perimeter, walls: posNum(H) ? perimeter * H * 0.85 : null };
+  };
+
+  RP.quantityFor = (tpl, room) => {
+    const q = tpl.qtyFrom;
+    if (isNum(q)) return q;
+    if (typeof q !== "string") return null;
+    const a = RP.areas(room); if (!a || !isNum(a[q])) return null;
+    let v = a[q] * (1 + (posNum(tpl.waste) ? tpl.waste : 0) / 100);
+    const imperial = room && room.units === "imperial" && TO_IMPERIAL[tpl.unit];
+    if (imperial) v *= TO_IMPERIAL[tpl.unit];
+    return round1(v);
+  };
+
+  RP.unitFor = (unit, room) => (room && room.units === "imperial" && IMPERIAL_UNIT[unit]) || unit || "item";
+
+  RP.elementsForType = (type, room) => {
+    const t = ROOM_TYPES[type] || ROOM_TYPES.other || { elements: [] };
+    return (t.elements || []).map((e, i) => ({
+      id: e.id, data: {
+        group: e.group, name: e.name, order: i, place: e.place || "", hint: e.hint || "",
+        unit: RP.unitFor(e.unit, room), qty: RP.quantityFor(e, room),
+      },
+    }));
+  };
+
+  // How many to buy and what it costs. Returns {cost, buy, buyLabel} or null when it can't be priced.
+  RP.cost = (o, el) => {
+    if (!o || !posNum(o.price) && o.price !== 0) return null;
+    const unit = (el && el.unit) || "item";
+    const qty = el && posNum(el.qty) ? el.qty : (unit === "item" ? 1 : null);
+    if (posNum(o.covers)) {
+      if (qty == null) return null;
+      const buy = Math.ceil(qty / o.covers - 1e-9);
+      return { cost: round2(buy * o.price), buy, buyLabel: `${buy} × ${o.per || "pack"}` };
+    }
+    const per = o.per || "item";
+    if (per === unit || (unit === "item" && (per === "item" || per === "each"))) {
+      if (qty == null) return null;
+      return { cost: round2(o.price * qty), buy: qty, buyLabel: `${fmtQty(qty)} ${UNIT_LABEL[unit] || unit}` };
+    }
+    return { cost: round2(o.price), buy: 1, buyLabel: `1 × ${per}` };
+  };
+
+  function fmtQty(q) { return Number.isInteger(q) ? String(q) : String(round1(q)); }
+  RP.fmtQty = fmtQty;
+
+  RP.money = (n, cur) => {
+    if (!isNum(n)) return "";
+    const sym = SYMBOL[cur] || SYMBOL.GBP;
+    const whole = Math.abs(n) >= 100 || Number.isInteger(n);
+    return sym + n.toLocaleString("en-GB", { minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: whole ? 0 : 2 });
+  };
+
+  RP.parseNum = (s) => {
+    if (typeof s === "number") return isFinite(s) ? s : null;
+    const t = String(s ?? "").replace(/[£€$,\s]/g, "").trim();
+    if (!t) return null;
+    const n = Number(t);
+    return isFinite(n) ? n : null;
+  };
+
+  RP.fmtLen = (mm, units) => {
+    if (!posNum(mm)) return "";
+    if (units === "imperial") { const inches = mm / 25.4; const ft = Math.floor(inches / 12); const inch = Math.round(inches - ft * 12); return inch === 12 ? `${ft + 1} ft` : inch === 0 ? `${ft} ft` : `${ft} ft ${inch} in`; }
+    return `${round2(mm / 1000)} m`;
+  };
+  RP.toMm = (v, units) => { const n = RP.parseNum(v); return posNum(n) ? Math.round(units === "imperial" ? n * 304.8 : n * 1000) : null; };
+
+  RP.safeUrl = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch { return ""; } };
+  RP.safeImg = (u) => (typeof u === "string" && /^\/_blob\/[A-Za-z0-9_-]+$/.test(u)) ? u : "";
+  RP.safeHex = (h) => (typeof h === "string" && /^#[0-9a-fA-F]{6}$/.test(h)) ? h : "";
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  RP.esc = esc;
+  const slug = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "part";
+
+  // ---------- state ----------
+  const state = {
+    room: null, roomLoaded: false, elements: [], options: [], presets: [], inbox: [], selection: {}, selectionExists: false,
+    loaded: { el: false, opt: false }, filter: "active",
+  };
+  let db = null, assets = null, downloads = null, mcp = null, sample = null;
+  let busy = false, browserTab = null, promptEdited = false, lastAutoPrompt = "", pendingRender = false;
+  const cur = () => (state.room && state.room.currency) || "GBP";
+  const units = () => (state.room && state.room.units) || "metric";
+  const money = (n) => RP.money(n, cur());
+  const optById = (id) => state.options.find((o) => o.id === id);
+  const elById = (id) => state.elements.find((e) => e.id === id);
+  const groupsInOrder = () => { const seen = []; for (const e of state.elements) { const g = e.group || "Other"; if (!seen.includes(g)) seen.push(g); } return seen; };
+  const optsFor = (elId) => state.options.filter((o) => o.element === elId);
+
+  let raf = 0;
+  const render = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderAll(); }); };
+  RP._render = () => renderAll();
+  RP._state = state;
+
+  function editingInside(node) { const a = document.activeElement; return a && node.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName); }
+
+  function renderAll() {
+    if (!state.roomLoaded || !state.loaded.el) return;
+    $("loading").hidden = true;
+    const needsSetup = !state.room || !state.room.setupDone;
+    $("setup").hidden = !needsSetup;
+    $("app").hidden = needsSetup;
+    renderHeader();
+    if (needsSetup) { prepSetup(); return; }
+    renderRoom(); renderFilters(); renderPresets();
+    if (editingInside($("elements"))) pendingRender = true; else renderElements();
+    renderSchedule(); renderInbox(); renderElSelects(); renderPrompt();
+  }
+
+  // ---------- header ----------
+  function renderHeader() {
+    const r = state.room || {};
+    const t = ROOM_TYPES[r.type];
+    $("room-title").textContent = r.name || "Room planner";
+    document.title = r.name ? `${r.name} planner` : "Room Planner";
+    $("eyebrow").textContent = t ? t.label : "Room planner";
+    const sw = (Array.isArray(r.swatches) ? r.swatches : []).map((s) => ({ hex: RP.safeHex(s && s.hex), name: String((s && s.name) || "") })).filter((s) => s.hex).slice(0, 8);
+    const list = sw.length ? sw : [{ hex: "#e9e4da", name: "" }, { hex: "#c9c2b4", name: "" }, { hex: "#8c9a8a", name: "" }, { hex: "#2e4f62", name: "" }];
+    $("chips").innerHTML = list.map((s) => {
+      const c = parseInt(s.hex.slice(1), 16), lum = 0.299 * (c >> 16) + 0.587 * (c >> 8 & 255) + 0.114 * (c & 255);
+      return `<span class="chip-swatch" style="background:${s.hex};color:${lum > 140 ? "#1f2422" : "#fbfbf9"}">${esc(s.name)}</span>`;
+    }).join("");
+  }
+
+  // ---------- setup ----------
+  let setupPrepared = false;
+  function prepSetup() {
+    if (setupPrepared) return; setupPrepared = true;
+    $("su-type").innerHTML = Object.entries(ROOM_TYPES).filter(([k]) => !k.startsWith("_")).map(([k, v]) => `<option value="${esc(k)}">${esc(v.label)}</option>`).join("");
+    const r = state.room || {};
+    if (r.name) $("su-name").value = r.name;
+    if (r.type && ROOM_TYPES[r.type]) $("su-type").value = r.type;
+    setupUnitLabels();
+  }
+  function setupUnitLabels() {
+    const u = $("su-units").value === "imperial" ? "ft" : "m";
+    $("su-len-l").textContent = `Length (${u})`; $("su-wid-l").textContent = `Width (${u})`; $("su-hei-l").textContent = `Ceiling height (${u})`;
+  }
+  $("su-units").addEventListener("change", setupUnitLabels);
+
+  $("setup-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!db) return;
+    const u = $("su-units").value;
+    const name = $("su-name").value.trim();
+    const L = RP.toMm($("su-len").value, u), W = RP.toMm($("su-wid").value, u), H = RP.toMm($("su-hei").value, u);
+    const err = !name ? "Give the room a name." : (($("su-len").value && !L) || ($("su-wid").value && !W) || ($("su-hei").value && !H)) ? "Sizes need to be numbers, like 4.2." : "";
+    $("su-error").textContent = err; if (err) return;
+    const room = {
+      name, type: $("su-type").value, units: u, currency: $("su-currency").value,
+      length_mm: L, width_mm: W, height_mm: H, budget: RP.parseNum($("su-budget").value),
+      scheme: $("su-scheme").value.trim(), layout: "", setupDone: true, version: VERSION, createdAt: Date.now(),
+    };
+    try {
+      const existing = new Set(state.elements.map((x) => x.id));
+      for (const { id, data } of RP.elementsForType(room.type, room)) if (!existing.has(id)) await db.doc("elements/" + id).set(data);
+      if (!state.selectionExists) await db.doc("state/selection").set({ map: {} });
+      await db.doc("room/brief").set(room);
+    } catch (er) { $("su-error").textContent = dbMessage(er); }
+  });
+
+  // ---------- room brief ----------
+  function renderRoom() {
+    const r = state.room, a = RP.areas(r);
+    const facts = [];
+    if (posNum(r.length_mm) && posNum(r.width_mm)) facts.push(`<span><b>Size${r.sizesEstimated ? " (estimate)" : ""}</b> ${esc(RP.fmtLen(r.length_mm, units()))} × ${esc(RP.fmtLen(r.width_mm, units()))}</span>`);
+    if (posNum(r.height_mm)) facts.push(`<span><b>Ceiling</b> ${esc(RP.fmtLen(r.height_mm, units()))}</span>`);
+    if (a) facts.push(`<span><b>Floor</b> ${units() === "imperial" ? fmtQty(round1(a.floor * 10.7639)) + " sq ft" : fmtQty(round1(a.floor)) + " m²"}</span>`);
+    if (posNum(r.budget)) facts.push(`<span><b>Budget</b> ${esc(money(r.budget))}</span>`);
+    $("facts").innerHTML = facts.join("");
+    $("room-text").textContent = [r.scheme ? "Look and feel: " + r.scheme : "", r.layout ? "Layout: " + r.layout : "", r.keeping ? "Staying: " + r.keeping : ""].filter(Boolean).join("  ·  ");
+    const figs = [["plan", "Floor plan"], ["photo", "The room now"], ["vis", "Design study"]].filter(([k]) => RP.safeImg(r[k]));
+    $("brief-figs").innerHTML = figs.map(([k, cap]) => `<figure><img src="${esc(r[k])}" alt="${esc(cap)}" loading="lazy"><figcaption>${esc(cap)}</figcaption></figure>`).join("");
+  }
+
+  $("edit-room").addEventListener("click", () => {
+    const r = state.room || {}, u = units() === "imperial" ? "ft" : "m", conv = (mm) => posNum(mm) ? String(round2(units() === "imperial" ? mm / 304.8 : mm / 1000)) : "";
+    $("rd-name").value = r.name || ""; $("rd-len").value = conv(r.length_mm); $("rd-wid").value = conv(r.width_mm); $("rd-hei").value = conv(r.height_mm);
+    $("rd-len-l").textContent = `Length (${u})`; $("rd-wid-l").textContent = `Width (${u})`; $("rd-hei-l").textContent = `Ceiling height (${u})`;
+    $("rd-budget").value = posNum(r.budget) ? String(r.budget) : ""; $("rd-scheme").value = r.scheme || ""; $("rd-layout").value = r.layout || "";
+    $("rd-photos").hidden = !assets; $("rd-plan").value = ""; $("rd-photo").value = ""; $("rd-error").textContent = "";
+    openDialog($("room-dialog"));
+  });
+  $("room-form").addEventListener("submit", async (e) => {
+    if (e.submitter && e.submitter.value === "cancel") return;
+    e.preventDefault();
+    const u = units();
+    const patch = { name: $("rd-name").value.trim() || state.room.name, scheme: $("rd-scheme").value.trim(), layout: $("rd-layout").value.trim(), budget: RP.parseNum($("rd-budget").value) };
+    for (const [k, id] of [["length_mm", "rd-len"], ["width_mm", "rd-wid"], ["height_mm", "rd-hei"]]) {
+      const raw = $(id).value.trim(); const mm = RP.toMm(raw, u);
+      if (raw && !mm) { $("rd-error").textContent = "Sizes need to be numbers, like 4.2."; return; }
+      patch[k] = mm;
+    }
+    try {
+      for (const [k, id] of [["plan", "rd-plan"], ["photo", "rd-photo"]]) { const f = $(id).files && $(id).files[0]; if (f) patch[k] = await uploadImage(f); }
+      await db.doc("room/brief").update(patch);
+      closeDialog($("room-dialog"));
+    } catch (er) { $("rd-error").textContent = er && er.userMessage || dbMessage(er); }
+  });
+
+  // ---------- toolbar ----------
+  const FILTERS = [["active", "All options"], ["shortlisted", "Shortlisted"], ["rejected", "Rejected"]];
+  function renderFilters() {
+    $("filters").innerHTML = '<span class="label">Show</span>' + FILTERS.map(([k, l]) => `<button type="button" class="chip" data-filter="${k}" aria-pressed="${state.filter === k}">${l}</button>`).join("");
+  }
+  function renderPresets() {
+    $("presets").innerHTML = state.presets.length ? '<span class="label">Apply</span>' + state.presets.map((p) => `<button type="button" class="chip apply" data-preset="${esc(p.id)}" title="Choose every item in this set">${esc(p.name || "Saved set")}</button>`).join("") + '<button type="button" class="chip apply" id="save-preset">Save current choices as a set</button>'
+      : '<button type="button" class="chip apply" id="save-preset">Save current choices as a set</button>';
+  }
+
+  // ---------- parts and options ----------
+  function priceLine(o, el) {
+    if (!posNum(o.price) && o.price !== 0) return `<span class="opt-price">${o.priceNote ? esc(o.priceNote) : "Price to check"}</span>`;
+    const per = o.per && o.per !== "item" && o.per !== "each" ? ` <small>per ${esc(o.per)}</small>` : "";
+    const covers = posNum(o.covers) ? ` <small>(covers ${esc(fmtQty(o.covers))} ${esc(UNIT_LABEL[el.unit] || el.unit)})</small>` : "";
+    const c = RP.cost(o, el);
+    const total = c && (c.buy !== 1 || posNum(o.covers) || (o.per && o.per !== "item")) ? `<br><small>${esc(c.buyLabel)} →</small> ${esc(money(c.cost))}` : "";
+    const needQty = !c ? `<br><small>Set the quantity to see a total</small>` : "";
+    return `<span class="opt-price">${esc(money(o.price))}${per}${covers}${total}${needQty}${o.priceNote ? `<br><small>${esc(o.priceNote)}</small>` : ""}</span>`;
+  }
+
+  function optionCard(o, el) {
+    const chosen = state.selection[el.id] === o.id;
+    const url = RP.safeUrl(o.url), src = RP.safeImg(o.image);
+    const status = ["idea", "shortlisted", "rejected"].includes(o.status) ? o.status : "idea";
+    return `<div class="opt ${chosen ? "is-chosen" : ""} ${status === "rejected" ? "rejected" : ""}" data-opt="${esc(o.id)}">
+      <label class="pick">
+        <input type="radio" name="el-${esc(el.id)}" value="${esc(o.id)}" ${chosen ? "checked" : ""} data-el="${esc(el.id)}" aria-label="Choose ${esc(o.name)}">
+        ${chosen ? '<span class="chosen-mark">Chosen</span>' : ""}
+        <div class="thumb">${src ? `<img src="${esc(src)}" alt="" loading="lazy">` : `<span>No photo yet</span>`}</div>
+        <div class="opt-body">
+          <span class="opt-name">${esc(o.name || "Untitled")}</span>
+          ${o.supplier || o.owned ? `<span class="opt-sup">${o.owned ? "Already yours" : ""}${o.owned && o.supplier ? " · " : ""}${esc(o.supplier || "")}</span>` : ""}
+          ${priceLine(o, el)}
+          ${o.spec ? `<span class="opt-spec">${esc(o.spec)}</span>` : ""}
+          ${o.note ? `<span class="opt-note">${esc(o.note)}</span>` : ""}
+          ${url ? `<a class="opt-link" href="${esc(url)}" target="_blank" rel="noopener">Product page ↗</a>` : ""}
+        </div>
+      </label>
+      <div class="opt-actions">
+        <select data-status="${esc(o.id)}" aria-label="Status of ${esc(o.name)}">
+          <option value="idea" ${status === "idea" ? "selected" : ""}>Idea</option>
+          <option value="shortlisted" ${status === "shortlisted" ? "selected" : ""}>Shortlisted</option>
+          <option value="rejected" ${status === "rejected" ? "selected" : ""}>Rejected</option>
+        </select>
+        <button type="button" class="link-btn" data-edit="${esc(o.id)}">Edit</button>
+        ${assets ? `<button type="button" class="link-btn" data-photo="${esc(o.id)}">${src ? "Change photo" : "Add photo"}</button>` : ""}
+        <button type="button" class="link-btn danger" data-del-opt="${esc(o.id)}">Remove</button>
+      </div>
+    </div>`;
+  }
+
+  function renderElements() {
+    pendingRender = false;
+    const main = $("elements");
+    const scrolls = {};
+    main.querySelectorAll(".options").forEach((n) => { scrolls[n.dataset.el] = n.scrollLeft; });
+    const html = groupsInOrder().map((g) => {
+      const els = state.elements.filter((e) => (e.group || "Other") === g);
+      const chosenN = els.filter((e) => optById(state.selection[e.id])).length;
+      const rows = els.map((el) => {
+        const sel = optById(state.selection[el.id]);
+        let opts = optsFor(el.id);
+        if (state.filter === "active") opts = opts.filter((o) => o.status !== "rejected" || o.id === state.selection[el.id]);
+        else opts = opts.filter((o) => (o.status || "idea") === state.filter || o.id === state.selection[el.id]);
+        const unit = el.unit || "item";
+        const qtyVal = posNum(el.qty) ? fmtQty(el.qty) : "";
+        return `<section class="element" id="el-${esc(el.id)}">
+          <div class="element-head"><h3>${esc(el.name || "Untitled part")}</h3>
+            <span class="choice ${sel ? "set" : ""}">${sel ? "Chosen: " + esc(sel.name) : "Not chosen"}</span>
+            <span class="tools">
+              <label class="qty">Quantity <input data-qty="${esc(el.id)}" inputmode="decimal" value="${esc(qtyVal)}" placeholder="?" aria-label="Quantity for ${esc(el.name)}"> ${esc(UNIT_LABEL[unit] || unit)}</label>
+              ${sel ? `<button type="button" class="link-btn" data-clear="${esc(el.id)}">Clear choice</button>` : ""}
+              <button type="button" class="link-btn danger" data-del-el="${esc(el.id)}">Remove part</button>
+            </span></div>
+          ${el.place ? `<p class="place">${esc(el.place)}</p>` : ""}
+          <div class="options" data-el="${esc(el.id)}">${opts.map((o) => optionCard(o, el)).join("")}<button type="button" class="add-card" data-add="${esc(el.id)}">+ Add an option</button></div>
+          ${!optsFor(el.id).length ? `<p class="empty">No options yet. Paste a link in the inbox above, or add one by hand.</p>` : ""}
+        </section>`;
+      }).join("");
+      return `<section class="group"><h2>${esc(g)} <small>${chosenN}/${els.length} chosen</small></h2>${rows}</section>`;
+    }).join("");
+    main.innerHTML = html || '<div class="notice">No parts of the room yet. Use “Add a part of the room” below.</div>';
+    main.querySelectorAll(".options").forEach((n) => { if (scrolls[n.dataset.el]) n.scrollLeft = scrolls[n.dataset.el]; });
+  }
+  $("elements").addEventListener("focusout", () => { setTimeout(() => { if (pendingRender && !editingInside($("elements"))) renderElements(); }, 0); });
+
+  // ---------- schedule ----------
+  function scheduleRows() {
+    const rows = [];
+    for (const g of groupsInOrder()) {
+      rows.push({ group: g });
+      for (const el of state.elements.filter((e) => (e.group || "Other") === g)) {
+        const o = optById(state.selection[el.id]);
+        rows.push({ el, opt: o, c: o ? RP.cost(o, el) : null });
+      }
+    }
+    return rows;
+  }
+  RP.totals = () => {
+    let total = 0, chosen = 0, unpriced = 0;
+    for (const r of scheduleRows()) { if (r.group || !r.opt) continue; chosen++; if (r.c) total += r.c.cost; else unpriced++; }
+    return { total: round2(total), chosen, unpriced, parts: state.elements.length };
+  };
+  const qtyText = (el) => posNum(el.qty) ? `${fmtQty(el.qty)} ${UNIT_LABEL[el.unit] || el.unit || ""}`.trim() : "";
+
+  function renderSchedule() {
+    const body = scheduleRows().map((r) => {
+      if (r.group) return `<tr class="group-row"><td colspan="5">${esc(r.group)}</td></tr>`;
+      const o = r.opt, url = o && RP.safeUrl(o.url);
+      return `<tr class="${o ? "" : "unset"}"><td>${esc(r.el.name)}</td>
+        <td>${o ? (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(o.name)}</a>` : esc(o.name)) : "Not chosen"}</td>
+        <td>${o ? esc(o.supplier || "") : ""}</td><td class="r">${o && r.c ? esc(r.c.buyLabel) : esc(qtyText(r.el))}</td>
+        <td class="r">${o ? (r.c ? esc(money(r.c.cost)) : "to check") : ""}</td></tr>`;
+    }).join("");
+    $("sched-body").innerHTML = body;
+    const t = RP.totals();
+    $("sched-total").textContent = money(t.total);
+    $("total").textContent = money(t.total);
+    $("chosen").textContent = `${t.chosen} of ${t.parts}`;
+    $("unpriced").textContent = String(t.unpriced);
+    const b = state.room && state.room.budget;
+    $("budget-box").hidden = !posNum(b);
+    if (posNum(b)) {
+      const pct = Math.min(100, (t.total / b) * 100);
+      $("bar-fill").style.width = pct + "%";
+      $("bar").classList.toggle("over", t.total > b);
+      $("budget-text").textContent = t.total > b ? `${money(round2(t.total - b))} over ${money(b)}` : `${money(round2(b - t.total))} left of ${money(b)}`;
+    }
+  }
+
+  function scheduleTable() {
+    const lines = [["Part", "Chosen", "Supplier", "Quantity", "Est. cost", "Link"]];
+    for (const r of scheduleRows()) {
+      if (r.group) { lines.push([r.group.toUpperCase()]); continue; }
+      const o = r.opt;
+      lines.push([r.el.name, o ? o.name : "Not chosen", o ? o.supplier || "" : "", o && r.c ? r.c.buyLabel : qtyText(r.el), o && r.c ? money(r.c.cost) : "", o ? RP.safeUrl(o.url) : ""]);
+    }
+    lines.push(["Total", "", "", "", money(RP.totals().total), ""]);
+    return lines;
+  }
+  RP.scheduleTable = scheduleTable;
+  RP.toCsv = (rows) => rows.map((r) => r.map((c) => { const s = String(c ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(",")).join("\r\n");
+
+  // ---------- inbox ----------
+  function renderElSelects() {
+    const opts = state.elements.map((e) => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join("");
+    for (const [id, first] of [["in-el", '<option value="">Part of room (if known)</option>'], ["od-el", ""]]) {
+      const s = $(id), cur = s.value; s.innerHTML = first + opts; if (cur) s.value = cur;
+    }
+  }
+  function renderInbox() {
+    const items = [...state.inbox].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    $("inbox-list").innerHTML = items.map((i) => {
+      const el = elById(i.element), opt = i.optionId && optById(i.optionId);
+      const sub = [el ? el.name : "", i.note || "", i.state === "done" && opt ? "Added: " + opt.name : "", i.error || ""].filter(Boolean).join(" · ");
+      const st = ["new", "working", "done", "queued", "failed"].includes(i.state) ? i.state : "new";
+      return `<li><span class="pill ${st}">${st}</span><div><div class="url">${esc(i.url)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>
+        <button type="button" class="link-btn" data-inbox-del="${esc(i.id)}" aria-label="Remove link">Remove</button></li>`;
+    }).join("");
+    const pending = state.inbox.filter((i) => ["new", "failed", "queued"].includes(i.state || "new")).length;
+    $("update-btn").disabled = busy || !pending;
+    $("update-btn").textContent = busy ? "Updating…" : pending ? `Update (${pending})` : "Update";
+  }
+
+  // ---------- visualise ----------
+  const CAMERA = {
+    "bathroom": "Eye level (about 1.6 m), standing in the doorway, wide lens, looking into the room.",
+    "kitchen": "Eye level, from the doorway or end of the room, showing the main run of units and any island.",
+    "hallway": "Eye level, from the front door looking along the hall.",
+  };
+  RP.buildPrompt = () => {
+    const r = state.room || {}, t = ROOM_TYPES[r.type], a = RP.areas(r);
+    const chosen = [], open = [];
+    for (const el of state.elements) {
+      const o = optById(state.selection[el.id]);
+      if (o) {
+        const bits = [o.spec, o.note].filter(Boolean).join("; ");
+        chosen.push(`- ${el.name}: ${o.name}${o.supplier ? " (" + o.supplier + ")" : ""}${bits ? ". " + bits : ""}${el.place ? ". Placement: " + el.place : ""}`);
+      } else if (el.render !== false) {
+        open.push(`- ${el.name}${el.hint ? ": " + el.hint : ""}${el.place ? " (" + el.place + ")" : ""}`);
+      }
+    }
+    const size = posNum(r.length_mm) && posNum(r.width_mm) ? `${RP.fmtLen(r.length_mm, units())} × ${RP.fmtLen(r.width_mm, units())}${posNum(r.height_mm) ? ", ceiling " + RP.fmtLen(r.height_mm, units()) : ""}` : "";
+    return [
+      `Please create a photorealistic interior visualisation of a ${t ? t.label.toLowerCase() : "room"}, as an interior designer's concept image. Keep the products, sizes and proportions true to the description below and don't add furniture or fittings that aren't described here.`,
+      "", "ROOM",
+      [size ? "Size" + (r.sizesEstimated ? " (approximate)" : "") + ": " + size + (a ? "." : "") : "", r.layout ? "Layout: " + r.layout : "", r.keeping ? "Staying as they are: " + r.keeping : "", r.scheme ? "Look and feel: " + r.scheme : ""].filter(Boolean).join("\n") || "(no details yet)",
+      "", "CHOSEN PRODUCTS", ...(chosen.length ? chosen : ["- (nothing chosen yet)"]),
+      ...(open.length ? ["", "NOT CHOSEN YET: show a simple, neutral version that suits the look", ...open] : []),
+      "", "VIEW", r.camera || CAMERA[r.type] || "Eye level (about 1.6 m), from the doorway, wide lens, showing as much of the room as possible. Natural daylight. Landscape 3:2.",
+      "", "If I add a reference board image, match each product's colour, finish and shape to its photo.",
+    ].join("\n");
+  };
+  const currentPrompt = () => promptEdited ? $("gpt-prompt").value : lastAutoPrompt;
+  function renderPrompt() {
+    const auto = RP.buildPrompt();
+    if (auto !== lastAutoPrompt) { lastAutoPrompt = auto; promptEdited = false; }
+    if (!promptEdited && document.activeElement !== $("gpt-prompt")) $("gpt-prompt").value = auto;
+    setGptLinks();
+  }
+  function setGptLinks() { const href = "https://chatgpt.com/?q=" + encodeURIComponent(currentPrompt()); $("gpt-open").href = href; $("gpt-top").href = href; }
+  async function copyText(text, statusEl, ok, fail) {
+    try { await navigator.clipboard.writeText(text); statusEl.textContent = ok; } catch { statusEl.textContent = fail; }
+  }
+  $("gpt-prompt").addEventListener("input", () => { promptEdited = true; setGptLinks(); });
+  for (const id of ["gpt-open", "gpt-top"]) $(id).addEventListener("click", () => { setGptLinks(); copyText(currentPrompt(), $("gpt-status"), "ChatGPT opened in a new tab. The prompt is also on your clipboard if the chat box is empty.", "ChatGPT opened in a new tab. If the chat is empty, open “See or edit the prompt” below and copy it from there."); });
+  $("gpt-copy").addEventListener("click", () => copyText(currentPrompt(), $("gpt-status"), "Prompt copied. Paste it into ChatGPT or any image tool.", "Copying isn't allowed here. Open “See or edit the prompt” and copy the text from the box."));
+
+  const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+  function wrapText(ctx, text, maxW, maxLines) {
+    const words = String(text).split(/\s+/), lines = []; let line = "", i = 0;
+    for (; i < words.length; i++) {
+      const t = line ? line + " " + words[i] : words[i];
+      if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = words[i]; if (lines.length === maxLines) break; } else line = t;
+    }
+    if (lines.length < maxLines && line) lines.push(line);
+    if (i < words.length && lines.length) lines[lines.length - 1] = lines[lines.length - 1].replace(/\s*\S*$/, "…");
+    return lines;
+  }
+  RP.buildBoard = async () => {
+    const r = state.room || {};
+    const cells = [];
+    if (RP.safeImg(r.plan)) cells.push({ title: "Floor plan", sub: [RP.fmtLen(r.length_mm, units()), RP.fmtLen(r.width_mm, units())].filter(Boolean).join(" × "), src: r.plan, contain: true });
+    for (const el of state.elements) { const o = optById(state.selection[el.id]); if (o && RP.safeImg(o.image)) cells.push({ title: el.name, sub: o.name, src: o.image }); }
+    if (!cells.length) { const e = new Error("nothing"); e.code = "nothing"; throw e; }
+    const cols = Math.min(3, cells.length), cw = 520, ih = 390, th = 92, pad = 24, head = 90, rows = Math.ceil(cells.length / cols);
+    const c = document.createElement("canvas"); c.width = pad + cols * (cw + pad); c.height = head + rows * (ih + th + pad) + pad;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#f7f6f2"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = "#1f2422"; ctx.font = "700 32px 'Bricolage Grotesque', Arial, sans-serif"; ctx.fillText(`${r.name || "Room"}: reference board`, pad, 52);
+    ctx.fillStyle = "#5d6661"; ctx.font = "400 18px 'Source Sans 3', Arial, sans-serif"; ctx.fillText("Current choices · " + new Date().toLocaleDateString("en-GB"), pad, 78);
+    const imgs = await Promise.all(cells.map((x) => loadImg(x.src)));
+    cells.forEach((cell, i) => {
+      const x = pad + (i % cols) * (cw + pad), y = head + Math.floor(i / cols) * (ih + th + pad);
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(x, y, cw, ih + th); ctx.strokeStyle = "#d5d9d4"; ctx.strokeRect(x + .5, y + .5, cw - 1, ih + th - 1);
+      const img = imgs[i];
+      if (img && img.width) {
+        const s = cell.contain ? Math.min(cw / img.width, ih / img.height) : Math.max(cw / img.width, ih / img.height), w = img.width * s, h = img.height * s;
+        ctx.save(); ctx.beginPath(); ctx.rect(x, y, cw, ih); ctx.clip(); ctx.drawImage(img, x + (cw - w) / 2, y + (ih - h) / 2, w, h); ctx.restore();
+      }
+      ctx.fillStyle = "#2e4f62"; ctx.font = "600 15px 'Source Sans 3', Arial, sans-serif"; ctx.fillText(String(cell.title).toUpperCase(), x + 14, y + ih + 26);
+      ctx.fillStyle = "#1f2422"; ctx.font = "400 18px 'Source Sans 3', Arial, sans-serif";
+      wrapText(ctx, cell.sub, cw - 28, 2).forEach((ln, k) => ctx.fillText(ln, x + 14, y + ih + 52 + k * 22));
+    });
+    return await new Promise((res, rej) => c.toBlob((b) => b ? res(b) : rej(new Error("blob")), "image/png"));
+  };
+  $("gpt-board").addEventListener("click", async () => {
+    if (!downloads) return;
+    $("gpt-status").textContent = "Building the reference board…";
+    try {
+      const blob = await RP.buildBoard();
+      await downloads.save({ filename: `${slug(state.room && state.room.name)}-reference-board.png`, data: blob });
+      $("gpt-status").textContent = "Board saved. Add it to the ChatGPT chat after the prompt.";
+    } catch (err) {
+      const code = err && err.code;
+      $("gpt-status").textContent = code === "declined" ? "Save cancelled." : code === "rate_limited" ? "A save is already waiting for you to confirm."
+        : code === "nothing" ? "Choose at least one product that has a photo first." : "Couldn't build the board here. Use the prompt on its own instead.";
+    }
+  });
+
+  // ---------- dialogs ----------
+  function openDialog(d) { try { d.showModal(); } catch { d.setAttribute("open", ""); } }
+  function closeDialog(d) { try { d.close(); } catch { d.removeAttribute("open"); } }
+  let editingOpt = null;
+  function perChoices(el) {
+    const u = (el && el.unit) || "item";
+    const list = u === "item" ? [["item", "each"]] : [[u, `per ${UNIT_LABEL[u] || u}`], ["item", "a fixed price"]];
+    for (const p of PACK_UNITS) list.push([p, `per ${p}`]);
+    return list;
+  }
+  function syncPer() {
+    const el = elById($("od-el").value), per = $("od-per").value, packLike = PACK_UNITS.includes(per);
+    $("od-covers-f").hidden = !packLike;
+    $("od-covers-l").textContent = `One ${per} covers (${UNIT_LABEL[(el && el.unit)] || "items"})`;
+  }
+  function fillPer(el, value) { $("od-per").innerHTML = perChoices(el).map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); if (value) $("od-per").value = value; syncPer(); }
+  $("od-el").addEventListener("change", () => fillPer(elById($("od-el").value)));
+  $("od-per").addEventListener("change", syncPer);
+  function openOptionForm(elId, o) {
+    editingOpt = o || null;
+    $("od-h").textContent = o ? "Edit option" : "Add an option";
+    renderElSelects(); $("od-el").value = (o && o.element) || elId;
+    const el = elById($("od-el").value);
+    $("od-name").value = o ? o.name || "" : ""; $("od-sup").value = o ? o.supplier || "" : ""; $("od-url").value = o ? o.url || "" : "";
+    $("od-price").value = o && isNum(o.price) ? String(o.price) : ""; $("od-covers").value = o && posNum(o.covers) ? String(o.covers) : "";
+    $("od-spec").value = o ? o.spec || "" : ""; $("od-note").value = o ? o.note || "" : "";
+    fillPer(el, o ? (posNum(o.covers) ? o.per || "pack" : o.per) : (el && el.unit !== "item" ? el.unit : "item"));
+    $("od-photo-f").hidden = !assets; $("od-photo").value = ""; $("od-error").textContent = "";
+    openDialog($("opt-dialog"));
+  }
+  $("opt-form").addEventListener("submit", async (e) => {
+    if (e.submitter && e.submitter.value === "cancel") { editingOpt = null; return; }
+    e.preventDefault();
+    const name = $("od-name").value.trim(), elId = $("od-el").value, rawPrice = $("od-price").value.trim(), price = RP.parseNum(rawPrice);
+    const urlRaw = $("od-url").value.trim(), url = urlRaw ? RP.safeUrl(urlRaw) : "";
+    const per = $("od-per").value, packLike = PACK_UNITS.includes(per), covers = packLike ? RP.parseNum($("od-covers").value) : null;
+    const err = !name ? "Give the option a name." : !elId ? "Choose which part of the room it's for." : rawPrice && price == null ? "The price needs to be a number, like 249.99." : urlRaw && !url ? "The link should start with https://" : packLike && $("od-covers").value.trim() && !posNum(covers) ? "Say how much one pack covers, as a number." : "";
+    $("od-error").textContent = err; if (err) return;
+    const data = { element: elId, name, supplier: $("od-sup").value.trim(), url, price, per: packLike && !posNum(covers) ? "item" : per, covers: posNum(covers) ? covers : null, spec: $("od-spec").value.trim(), note: $("od-note").value.trim() };
+    try {
+      const f = $("od-photo").files && $("od-photo").files[0];
+      if (f) data.image = await uploadImage(f);
+      if (editingOpt) await db.doc("options/" + editingOpt.id).update(data);
+      else await db.collection("options").add({ ...data, status: "idea", source: "manual", image: data.image || "", createdAt: Date.now(), order: 1000 + state.options.length });
+      editingOpt = null; closeDialog($("opt-dialog"));
+    } catch (er) { $("od-error").textContent = er && er.userMessage || dbMessage(er); }
+  });
+
+  $("add-part").addEventListener("click", () => {
+    $("pd-groups").innerHTML = groupsInOrder().map((g) => `<option value="${esc(g)}"></option>`).join("");
+    const u = units() === "imperial" ? ["item", "ft²", "ft"] : ["item", "m²", "m", "L"];
+    $("pd-unit").innerHTML = u.map((x) => `<option value="${esc(x)}">${esc(UNIT_LABEL[x])}</option>`).join("");
+    $("pd-name").value = ""; $("pd-group").value = groupsInOrder()[groupsInOrder().length - 1] || "Other"; $("pd-qty").value = "1"; $("pd-place").value = ""; $("pd-error").textContent = "";
+    openDialog($("part-dialog"));
+  });
+  $("part-form").addEventListener("submit", async (e) => {
+    if (e.submitter && e.submitter.value === "cancel") return;
+    e.preventDefault();
+    const name = $("pd-name").value.trim(); if (!name) { $("pd-error").textContent = "Give the part a name."; return; }
+    let id = slug(name), n = 2; while (elById(id)) id = slug(name) + "-" + n++;
+    const order = state.elements.reduce((m, x) => Math.max(m, isNum(x.order) ? x.order : 0), 0) + 1;
+    try { await db.doc("elements/" + id).set({ name, group: $("pd-group").value.trim() || "Other", unit: $("pd-unit").value, qty: RP.parseNum($("pd-qty").value), place: $("pd-place").value.trim(), order }); closeDialog($("part-dialog")); }
+    catch (er) { $("pd-error").textContent = dbMessage(er); }
+  });
+
+  // ---------- photos ----------
+  async function uploadImage(file) {
+    if (!assets) { const e = new Error("no assets"); e.userMessage = "Photos can only be added by someone who can edit this planner."; throw e; }
+    if (!/^image\//.test(file.type)) { const e = new Error("type"); e.userMessage = "That file isn't an image."; throw e; }
+    try { const r = await assets.upload(file); return "/_blob/" + r.id; }
+    catch (er) {
+      const e = new Error("upload"); const c = er && er.code;
+      e.userMessage = c === "too_large" || c === "invalid_request" ? "That photo couldn't be stored. Try a smaller JPEG or PNG." : c === "quota_exceeded" ? "The planner's photo storage is full. Remove some photos first." : "Couldn't upload that photo. Try again.";
+      throw e;
+    }
+  }
+  let photoTarget = null;
+  $("photo-input").addEventListener("change", async () => {
+    const f = $("photo-input").files && $("photo-input").files[0]; const id = photoTarget; $("photo-input").value = ""; photoTarget = null;
+    if (!f || !id) return;
+    toast("Uploading photo…");
+    try { const url = await uploadImage(f); await db.doc("options/" + id).update({ image: url }); toast("Photo added."); }
+    catch (er) { toast(er.userMessage || dbMessage(er)); }
+  });
+
+  // ---------- undo + toast ----------
+  let toastTimer = 0, undoAction = null;
+  function toast(text, undo) {
+    $("toast-text").textContent = text; $("toast").hidden = false; undoAction = undo || null; $("toast-undo").hidden = !undo;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; undoAction = null; }, undo ? 10000 : 4000);
+  }
+  $("toast-undo").addEventListener("click", async () => { const a = undoAction; undoAction = null; $("toast").hidden = true; if (a) { try { await a(); toast("Restored."); } catch (er) { toast(dbMessage(er)); } } });
+
+  // ---------- selection writes ----------
+  async function writeSelection(patch) {
+    Object.assign(state.selection, patch); render();
+    try {
+      if (state.selectionExists) await db.doc("state/selection").update({ map: patch });
+      else { await db.doc("state/selection").set({ map: { ...state.selection } }); state.selectionExists = true; }
+    } catch (er) { toast(dbMessage(er)); }
+  }
+
+  // ---------- events ----------
+  document.addEventListener("change", async (e) => {
+    const t = e.target;
+    if (!db) return;
+    if (t.matches('input[type="radio"][data-el]')) writeSelection({ [t.dataset.el]: t.value });
+    else if (t.dataset.status) { try { await db.doc("options/" + t.dataset.status).update({ status: t.value }); } catch (er) { toast(dbMessage(er)); } }
+    else if (t.dataset.qty) {
+      const raw = t.value.trim(), n = RP.parseNum(raw);
+      if (raw && (n == null || n < 0)) { toast("Quantity needs to be a number."); t.value = ""; return; }
+      const el = elById(t.dataset.qty); if (el) el.qty = n;
+      try { await db.doc("elements/" + t.dataset.qty).update({ qty: n }); } catch (er) { toast(dbMessage(er)); }
+      render();
+    }
+  });
+
+  document.addEventListener("click", async (e) => {
+    const t = e.target.closest("button");
+    if (!t || !db) return;
+    const d = t.dataset;
+    if (d.filter) { state.filter = d.filter; try { localStorage.setItem("rp-filter", state.filter); } catch {} render(); }
+    else if (d.clear) writeSelection({ [d.clear]: null });
+    else if (d.preset) { const p = state.presets.find((x) => x.id === d.preset); if (p && p.map) { const valid = {}; for (const [k, v] of Object.entries(p.map)) if (elById(k)) valid[k] = v && optById(v) ? v : null; writeSelection(valid); toast(`Applied “${p.name || "set"}”.`); } }
+    else if (t.id === "save-preset") {
+      const n = state.presets.length + 1, map = {}; for (const el of state.elements) map[el.id] = state.selection[el.id] && optById(state.selection[el.id]) ? state.selection[el.id] : null;
+      try { await db.collection("presets").add({ name: `Set ${n} (${new Date().toLocaleDateString("en-GB")})`, order: n, map }); toast("Saved your current choices as a set."); } catch (er) { toast(dbMessage(er)); }
+    }
+    else if (d.add) openOptionForm(d.add);
+    else if (d.edit) { const o = optById(d.edit); if (o) openOptionForm(o.element, o); }
+    else if (d.photo) { photoTarget = d.photo; $("photo-input").click(); }
+    else if (d.delOpt) {
+      const o = optById(d.delOpt); if (!o) return;
+      const { id, ...data } = o; const wasChosen = Object.entries(state.selection).filter(([, v]) => v === id).map(([k]) => k);
+      try {
+        if (wasChosen.length) await writeSelection(Object.fromEntries(wasChosen.map((k) => [k, null])));
+        await db.doc("options/" + id).delete();
+        toast(`Removed “${o.name}”.`, async () => { await db.doc("options/" + id).set(data); if (wasChosen.length) await writeSelection(Object.fromEntries(wasChosen.map((k) => [k, id]))); });
+      } catch (er) { toast(dbMessage(er)); }
+    }
+    else if (d.delEl) {
+      const el = elById(d.delEl); if (!el) return;
+      if (t.dataset.confirm !== "1") { t.dataset.confirm = "1"; t.textContent = optsFor(el.id).length ? `Remove part and its ${optsFor(el.id).length} options?` : "Confirm remove"; return; }
+      const { id, ...data } = el; const opts = optsFor(id).map(({ id: oid, ...od }) => ({ oid, od })); const sel = state.selection[id] || null;
+      try {
+        for (const { oid } of opts) await db.doc("options/" + oid).delete();
+        await db.doc("elements/" + id).delete();
+        if (sel) await writeSelection({ [id]: null });
+        toast(`Removed “${el.name}”.`, async () => { await db.doc("elements/" + id).set(data); for (const { oid, od } of opts) await db.doc("options/" + oid).set(od); if (sel) await writeSelection({ [id]: sel }); });
+      } catch (er) { toast(dbMessage(er)); }
+    }
+    else if (d.inboxDel) { try { await db.doc("inbox/" + d.inboxDel).delete(); } catch (er) { toast(dbMessage(er)); } }
+  });
+
+  $("inbox-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); if (!db) return;
+    const url = RP.safeUrl($("in-url").value.trim());
+    if (!url) { $("inbox-status").textContent = "That doesn't look like a web link. Paste the full address starting https://"; return; }
+    try { await db.collection("inbox").add({ url, element: $("in-el").value || "", note: $("in-note").value.trim(), state: "new", createdAt: Date.now() }); }
+    catch (er) { $("inbox-status").textContent = dbMessage(er); return; }
+    $("in-url").value = ""; $("in-note").value = "";
+    $("inbox-status").textContent = "Link added. Press Update to turn it into an option.";
+  });
+  $("update-btn").addEventListener("click", () => processInbox());
+
+  $("copy-btn").addEventListener("click", () => copyText(scheduleTable().map((r) => r.join("\t")).join("\n"), $("copy-status"), "Table copied. It pastes into a spreadsheet or an email.", "Copying isn't allowed here. Select the table and copy it instead."));
+  $("csv-btn").addEventListener("click", async () => {
+    try { await downloads.save({ filename: `${slug(state.room && state.room.name)}-schedule.csv`, data: RP.toCsv(scheduleTable()) }); $("copy-status").textContent = "Spreadsheet saved."; }
+    catch (er) { $("copy-status").textContent = er && er.code === "declined" ? "Save cancelled." : "Couldn't save the file here. Use Copy table instead."; }
+  });
+
+  function dbMessage(err) {
+    const c = err && err.code;
+    return c === "quota_exceeded" ? "The planner is full. Remove some options or old links first."
+      : c === "revoked" ? "This planner is no longer available to you." : c === "resource_exhausted" ? "Too many changes at once. Wait a moment and try again."
+      : "Couldn't save that change. Check your connection and try again.";
+  }
+
+  // ---------- backup ----------
+  RP.exportBackup = () => ({
+    format: "room-planner-backup", version: 1, appVersion: VERSION, exportedAt: new Date().toISOString(),
+    room: state.room, elements: state.elements, options: state.options, presets: state.presets, selection: state.selection,
+  });
+  RP.validateBackup = (b) => {
+    if (!b || b.format !== "room-planner-backup") return "That file isn't a Room Planner backup.";
+    if (!b.room || typeof b.room !== "object") return "The backup has no room details.";
+    for (const k of ["elements", "options", "presets"]) if (!Array.isArray(b[k])) return "The backup is incomplete.";
+    if (b.elements.some((x) => !x || typeof x.id !== "string" || !/^[A-Za-z0-9_\-.~:@+]{1,200}$/.test(x.id))) return "The backup has a damaged part list.";
+    if (b.options.some((x) => !x || typeof x.id !== "string" || !/^[A-Za-z0-9_\-.~:@+]{1,200}$/.test(x.id))) return "The backup has a damaged option list.";
+    return "";
+  };
+  $("backup-save").addEventListener("click", async () => {
+    try { await downloads.save({ filename: `${slug(state.room && state.room.name)}-backup-${new Date().toISOString().slice(0, 10)}.json`, data: JSON.stringify(RP.exportBackup(), null, 2) }); $("backup-status").textContent = "Backup saved."; }
+    catch (er) { $("backup-status").textContent = er && er.code === "declined" ? "Save cancelled." : "Couldn't save the backup here."; }
+  });
+  let pendingRestore = null;
+  $("backup-file").addEventListener("change", async () => {
+    const f = $("backup-file").files && $("backup-file").files[0]; $("backup-file").value = ""; if (!f) return;
+    let b; try { b = JSON.parse(await f.text()); } catch { $("backup-status").textContent = "That file couldn't be read as a backup."; return; }
+    const err = RP.validateBackup(b); if (err) { $("backup-status").textContent = err; return; }
+    pendingRestore = b;
+    $("restore-text").textContent = `“${b.room.name || "Room"}” from ${String(b.exportedAt || "").slice(0, 10) || "an unknown date"}: ${b.elements.length} parts, ${b.options.length} options. This replaces everything in the planner.`;
+    $("restore-confirm").hidden = false; $("backup-status").textContent = "";
+  });
+  $("restore-cancel").addEventListener("click", () => { pendingRestore = null; $("restore-confirm").hidden = true; });
+  RP.restore = async (b) => {
+    const strip = ({ id, ...rest }) => rest;
+    const keep = { elements: new Set(b.elements.map((x) => x.id)), options: new Set(b.options.map((x) => x.id)), presets: new Set(b.presets.map((x) => x.id)) };
+    for (const [coll, list] of [["options", state.options], ["elements", state.elements], ["presets", state.presets]]) for (const x of list) if (!keep[coll].has(x.id)) await db.doc(`${coll}/${x.id}`).delete();
+    for (const x of b.elements) await db.doc("elements/" + x.id).set(strip(x));
+    for (const x of b.options) await db.doc("options/" + x.id).set(strip(x));
+    for (const x of b.presets) await db.doc("presets/" + x.id).set(strip(x));
+    await db.doc("state/selection").set({ map: b.selection && typeof b.selection === "object" ? b.selection : {} }); state.selectionExists = true;
+    await db.doc("room/brief").set({ ...b.room, setupDone: true });
+  };
+  $("restore-go").addEventListener("click", async () => {
+    const b = pendingRestore; if (!b) return; pendingRestore = null; $("restore-confirm").hidden = true;
+    $("backup-status").textContent = "Restoring…";
+    try { await RP.restore(b); $("backup-status").textContent = "Planner restored from the backup."; }
+    catch (er) { $("backup-status").textContent = dbMessage(er) + " Part of the backup may not have been restored; try again."; }
+  });
+
+  // ---------- link import (Claude desktop app) ----------
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const textOf = (res) => { if (!res) return ""; if (typeof res.payload === "string") return res.payload; return (res.content || []).filter((b) => b && b.type === "text").map((b) => b.text).join("\n"); };
+  async function browserAvailable() {
+    if (!mcp) return false;
+    try { const r = await mcp.listTools("host:claude_browser"); return r.servers.some((s) => s.server === "host:claude_browser" && s.tools.length); } catch { return false; }
+  }
+  async function readPage(url) {
+    if (!browserTab) { const res = await mcp.callTool("host:claude_browser", "preview_start", { url }, { cache: false }); const m = textOf(res).match(/tabId\s+([^\s).]+)/); browserTab = m ? m[1] : null; }
+    else await mcp.callTool("host:claude_browser", "navigate", { url, tabId: browserTab }, { cache: false });
+    let text = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await sleep(attempt ? 6000 : 4000);
+      const r = await mcp.callTool("host:claude_browser", "get_page_text", browserTab ? { tabId: browserTab, max_chars: 14000 } : { max_chars: 14000 }, { cache: false });
+      text = textOf(r);
+      if (!/Just a moment|security verification|verify you are human/i.test(text) && text.length > 400) break;
+    }
+    return text;
+  }
+  RP.extractPrompt = (item, pageText) => {
+    const r = state.room || {}, t = ROOM_TYPES[r.type];
+    const els = state.elements.map((e) => `${e.id}: ${e.name} (measured in ${e.unit || "item"}${posNum(e.qty) ? ", need " + fmtQty(e.qty) : ""})`).join("\n");
+    return `You turn a product web page into one option for a home renovation planner.
+Room: ${t ? t.label : "room"}${posNum(r.length_mm) ? `, ${RP.fmtLen(r.length_mm, units())} x ${RP.fmtLen(r.width_mm, units())}` : ""}. Look and feel: ${r.scheme || "not given"}. Currency: ${cur()}.
+The person's note: ${item.note || "(none)"}
+Part of room they picked: ${item.element || "(not given)"}
+Parts of the room (id: name):
+${els}
+
+Page address: ${item.url}
+Page text (may be cut short):
+"""
+${String(pageText).slice(0, 13000)}
+"""
+
+Reply with only JSON:
+{"element": "<one id from the list>", "name": "<short product name>", "supplier": "<shop>", "price": <number, or null if no price on the page>, "per": "<what the price buys: 'item', or the part's unit such as 'm²', or one of ${PACK_UNITS.join("/")}>", "covers": <if sold in packs, how much of the part's unit one pack covers, else null>, "priceNote": "<price as shown, mention a sale or delivery cost, or ''>", "spec": "<key size, colour, finish, material in one line>", "note": "<one practical point for this room, or ''>"}
+Use only facts from the page text.`;
+  };
+  async function processInbox() {
+    if (busy || !db) return;
+    const todo = state.inbox.filter((i) => ["new", "failed", "queued"].includes(i.state || "new"));
+    if (!todo.length) return;
+    busy = true; render();
+    const canBrowse = sample && (await browserAvailable());
+    if (!canBrowse) {
+      for (const i of todo) await db.doc("inbox/" + i.id).update({ state: "queued", error: "" }).catch(() => {});
+      $("inbox-status").textContent = "Queued. Reading links needs the Claude desktop app. Until then, ask Claude to “process my room planner inbox” and it will add them.";
+      busy = false; render(); return;
+    }
+    let added = 0;
+    for (const i of todo) {
+      const host = (() => { try { return new URL(i.url).hostname; } catch { return "the page"; } })();
+      $("inbox-status").textContent = `Reading ${host}…`;
+      await db.doc("inbox/" + i.id).update({ state: "working", error: "" }).catch(() => {});
+      try {
+        const text = await readPage(i.url);
+        if (!text || text.length < 200) throw { code: "empty" };
+        $("inbox-status").textContent = `Pulling out the details from ${host}…`;
+        const d = await sample.json(RP.extractPrompt(i, text), { modelTier: "default" });
+        const element = elById(d && d.element) ? d.element : (i.element || "");
+        if (!element) throw { code: "no_element" };
+        const price = RP.parseNum(d.price);
+        const ref = await db.collection("options").add({
+          element, name: String(d.name || "Untitled product").slice(0, 140), supplier: String(d.supplier || "").slice(0, 80), url: i.url,
+          price, per: String(d.per || "item").slice(0, 20), covers: posNum(RP.parseNum(d.covers)) ? RP.parseNum(d.covers) : null,
+          priceNote: String(d.priceNote || "").slice(0, 120), spec: String(d.spec || "").slice(0, 300), note: [i.note, d.note].filter(Boolean).join(" · ").slice(0, 300),
+          status: "idea", source: "link", image: "", createdAt: Date.now(), order: 1000 + state.options.length,
+        });
+        await db.doc("inbox/" + i.id).update({ state: "done", optionId: ref.id, element });
+        added++;
+      } catch (err) {
+        const code = err && err.code;
+        const msg = code === "not_granted" ? "Claude wasn't allowed to read this page." : code === "cancelled" ? "The page visit was cancelled."
+          : code === "server_not_connected" ? "Claude's browser isn't available here; queued instead." : code === "no_element" ? "Couldn't tell which part of the room this is for. Pick one, then press Update again."
+          : code === "empty" ? "The page didn't show any product details (some shops block automated visits). Add it by hand instead." : code === "invalid_json" ? "Couldn't pull clear product details from this page."
+          : "Couldn't read this page.";
+        await db.doc("inbox/" + i.id).update({ state: code === "server_not_connected" ? "queued" : "failed", error: msg }).catch(() => {});
+        if (code === "not_granted") break;
+      }
+    }
+    $("inbox-status").textContent = added ? `Added ${added} option${added > 1 ? "s" : ""}. Add a photo to ${added > 1 ? "each" : "it"} with “Add photo”.` : "Nothing was added. See the note under each link.";
+    busy = false; render();
+  }
+
+  // ---------- boot ----------
+  try { const f = localStorage.getItem("rp-filter"); if (["active", "shortlisted", "rejected"].includes(f)) state.filter = f; } catch {}
+  $("ver").textContent = "v" + VERSION;
+  const docs = (s) => s.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
+  (async () => {
+    db = await (window.claude && window.claude.use ? window.claude.use("db") : null);
+    if (!db) { $("loading").textContent = "Open this page in Claude to use the planner."; return; }
+    const fail = (er) => { if (er && er.code === "revoked") $("loading").textContent = "This planner is no longer available to you."; };
+    db.doc("room/brief").onSnapshot((d) => { state.room = d.exists ? d.data() : null; state.roomLoaded = true; render(); }, fail);
+    db.collection("elements").orderBy("order").onSnapshot((s) => { state.elements = docs(s); state.loaded.el = true; render(); }, fail);
+    db.collection("options").onSnapshot((s) => {
+      state.options = docs(s).sort((a, b) => (isNum(a.order) ? a.order : 999) - (isNum(b.order) ? b.order : 999) || (a.createdAt || 0) - (b.createdAt || 0));
+      state.loaded.opt = true; render();
+    }, fail);
+    db.collection("presets").orderBy("order").onSnapshot((s) => { state.presets = docs(s); render(); }, fail);
+    db.collection("inbox").onSnapshot((s) => { state.inbox = docs(s); render(); }, fail);
+    db.doc("state/selection").onSnapshot((d) => { state.selectionExists = d.exists; const m = d.exists && d.data().map; state.selection = m && typeof m === "object" ? { ...m } : {}; render(); }, fail);
+    [assets, downloads, mcp, sample] = await Promise.all(["assets", "downloads", "mcp", "sample"].map((n) => window.claude.use(n).catch(() => null)));
+    $("gpt-board").hidden = !downloads; $("csv-btn").hidden = !downloads; $("backup-save").hidden = !downloads;
+    $("inbox-mode").textContent = mcp
+      ? "Paste product links, then press Update. In the Claude desktop app, Claude opens each page and adds it as an option (it asks before visiting each site). Elsewhere, links wait in the queue until you ask Claude to process them."
+      : "Paste product links, then press Update. Links wait in the queue until you ask Claude to “process my room planner inbox”.";
+    render();
+  })();
+})();
+</script>
