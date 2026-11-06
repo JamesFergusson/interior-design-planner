@@ -22,7 +22,7 @@ export function loadFixture(name) {
 }
 
 let browser;
-export async function getBrowser() { if (!browser) browser = await chromium.launch(); return browser; }
+export async function getBrowser() { if (!browser) browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}); return browser; }
 export async function closeBrowser() { if (browser) await browser.close(); browser = null; }
 
 export async function openPlanner({ fixture, store, caps, failWrites, noClaude, colorScheme = "light", viewport = { width: 1280, height: 900 }, extra = {} } = {}) {
