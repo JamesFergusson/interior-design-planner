@@ -5,10 +5,13 @@ Claude finds real products for each part of it and builds you a page where you c
 
 - compare options side by side, with photos, prices and links, and pick one per part;
 - see quantities and costs worked out for your room (paint by wall area, flooring by floor area, tiles by the box);
+- lay the room out on a floor plan drawn to the millimetre: drag furniture and fittings around, type exact sizes and
+  gaps, add or move doors, windows and partition walls. Give Claude your floor plan and it draws it for you;
 - keep an eye on the total against your budget;
 - copy or download a shopping schedule;
 - paste product links you find and have Claude add them;
-- open ChatGPT with a ready-made prompt to picture the room, plus a reference board of your choices;
+- open ChatGPT with a ready-made prompt to picture the room, giving the exact size and position of everything, plus
+  a labelled plan image and a reference board of your choices;
 - save and restore a backup.
 
 Works for living rooms, bedrooms, bathrooms, kitchens, dining rooms, home offices, hallways and children's rooms.
@@ -64,10 +67,10 @@ plugins/interior-design-planner/
     SKILL.md                    instructions Claude follows
     assets/planner.html         the page template (never edited per room)
     scripts/planner.py          checks room.json, lists photos, builds the database writes
-    references/                 data model, research guide, troubleshooting, room types
+    references/                 data model, floor plan, research guide, troubleshooting, room types, plan symbols
 tests/                          automated tests (page in headless Chromium + Python)
 evals/                          scenarios and grader for testing Claude's use of the skill
-tools/build.py                  copies room-types.json into the page template
+tools/build.py                  copies room-types.json and plan-kinds.json into the page template
 ```
 
 Licence: MIT.

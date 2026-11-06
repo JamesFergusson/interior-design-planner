@@ -6,7 +6,7 @@
     "build": "python3 tools/build.py",
     "fixtures": "python3 tests/make_fixtures.py",
     "test:py": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
-    "test:page": "node --test --test-concurrency=1 tests/page.test.mjs",
+    "test:page": "node --test --test-concurrency=1 tests/page.test.mjs tests/plan.test.mjs",
     "test": "python3 tools/build.py --check && python3 tests/make_fixtures.py && npm run test:py && npm run test:page"
   },
   "devDependencies": {

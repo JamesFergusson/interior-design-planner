@@ -70,6 +70,8 @@ documents; the same shapes apply when adding or changing documents directly with
 | `image` | `/_blob/<id>` from an upload, or `""` (written by `planner.py seed`; don't set it in room.json) |
 | `image_file` | room.json only: path of a downloaded photo, e.g. `photos/sofa-olive.jpg`; `planner.py photos` lists these for upload |
 | `source` | `setup`, `link` or `manual` |
+| `size` | `{"w", "d", "h"}` in mm: width across the front, depth front to back, height; plus `"from"`: `page`, `estimate` or `manual`. Leave out if unknown |
+| `shape` | `""` (rectangle), `rounded`, `round`, `quadrant` or `L`: how the floor plan draws it |
 | `order` | Sort order within the part |
 
 ### How cost is worked out (page and script use the same rule)
@@ -88,6 +90,11 @@ Knobs, 12 needed (unit item), `12.90 per set, covers 4` → 3 sets, £38.70. Flo
 When a part needs several of something (2 alcove shelves) but an option covers it in one purchase (one bookcase),
 give that option `"per": "set", "covers": <the part's qty>` so it costs once.
 
+## Floor plan (room.json `plan`)
+
+Optional. Walls, partitions, doors, windows, the items in the room and a camera position, all in millimetres.
+The format, and how to read someone's floor plan, are in `references/floor-plan.md`.
+
 ## Starting choices
 
 `state/selection` starts as `picks` plus the first `shortlisted` option in every other part. Two presets are made:
@@ -98,5 +105,12 @@ give that option `"per": "set", "covers": <the part's qty>` so it costs once.
 - `room/brief`: the `room` section plus `setupDone: true`, `version`, and `plan`/`photo`/`vis` image URLs.
 - `state/selection`: `{"map": {"<part id>": "<option id>" or null}}` — the user's current choices.
 - `presets/<id>`: `{"name", "order", "map"}` — saved sets of choices; `suggested` (picks + shortlisted) and `cheapest` are made at setup.
+- `plan/geometry`: `{"corners": [{"id", "x", "y"}], "wallT", "dividers": [{"id", "x1", "y1", "x2", "y2", "t"}],
+  "openings": [{"id", "type", "wall" (a corner id = the wall starting there, or a divider id), "at", "width", "side" (1 or -1),
+  "hinge", "style", "sill", "head"}], "camera": {"x", "y", "dir", "fov", "eye"} or null, "underlay": {"src", "x", "y", "mmPerPx",
+  "opacity", "show"}, "grid", "version"}`. Written by `planner.py seed` from the `plan` section, and by the page as people edit.
+- `items/<id>`: one thing in the floor plan: `{"name", "kind", "shape", "w", "d", "h", "z", "x", "y", "rot", "flip", "cut",
+  "element" (part id or ""), "follow" (take the chosen option's size), "inset", "order"}`. `x`, `y` are the middle of its back
+  edge; `rot` is clockwise degrees.
 - `inbox/<id>`: `{"url", "element", "note", "state", "createdAt", "optionId"?, "error"?}`;
   `state` is `new`, `working`, `queued`, `done` or `failed`.
