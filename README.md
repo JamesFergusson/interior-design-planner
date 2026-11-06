@@ -11,7 +11,7 @@ Claude finds real products for each part of it and builds you a page where you c
 - copy or download a shopping schedule;
 - paste product links you find and have Claude add them;
 - open ChatGPT with a ready-made prompt to picture the room, giving the exact size and position of everything, plus
-  a labelled plan image and a reference board of your choices;
+  a labelled plan image and a reference board of your choices, then keep the pictures ChatGPT makes in the planner;
 - save and restore a backup.
 
 Works for living rooms, bedrooms, bathrooms, kitchens, dining rooms, home offices, hallways and children's rooms.

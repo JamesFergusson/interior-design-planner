@@ -23,7 +23,12 @@ Floor plan.
 - Items can be attached to another (shower screens to their tray): they move, turn and resize with it, and a
   wider product chosen in the list keeps its wall-side edge where it was.
 - Doors and windows: "+ Door" and "+ Window" on the toolbar, and handles on each edge to resize them by dragging.
-- Backup and restore include the floor plan.
+- "Save to room brief" makes the current layout the room's plan (the brief shows a drawing of it; the original
+  drawing is kept), and "Reset to brief plan" puts the layout back to it. The layout Claude sets up counts as the
+  first saved plan.
+- Pictures from ChatGPT: add them back to the planner (choose files, drop them on the panel, or paste). Each keeps
+  the date, the choices and prompt it was made from, and a note; one can be the room brief's design study.
+- Backup and restore include the floor plan, the saved plan and the pictures.
 - Paint-chip labels pick whichever text colour reads better.
 
 ## 0.1.0 — 2026-10-18

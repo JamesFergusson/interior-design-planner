@@ -625,3 +625,86 @@ test("doors and windows: add from the toolbar, resize by dragging an edge, move,
   assert.equal((await model(page)).openings.some((o) => o.id === w.id), false);
   noErrors(errors); await ctx.close();
 });
+
+// ---------- the room brief's plan; pictures from ChatGPT ----------
+test("save the layout to the room brief, rearrange, then reset back to it (and undo the reset)", async () => {
+  const { page, ctx, errors } = await open("main-bathroom");
+  assert.equal(await page.locator("#plan-reset").isVisible(), true, "the starting layout can be reset to from the start");
+  // move the WC, then save that as the brief's plan
+  await pick(page, "wc");
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Alt+ArrowDown"); await page.waitForTimeout(80);
+  const moved = await item(page, "wc");
+  await page.click("#plan-save");
+  await page.waitForFunction(() => window.__mockStore.get("room/brief").planSavedAt > 0, null, { timeout: 8000 });
+  let d = await dump(page);
+  assert.match(d["room/brief"].plan, /^\/_blob\/up\d+$/, "the brief shows a drawing of the layout");
+  assert.match(d["room/brief"].planOriginal, /^\/_blob\//, "the original drawing is kept");
+  assert.equal(d["plan/saved"].items.find((x) => x.id === "wc").y, moved.y);
+  assert.equal((await page.evaluate(() => window.__uploads))[0].type, "image/png");
+  // rearrange: move the WC again and delete the bath
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Alt+ArrowDown"); await page.waitForTimeout(80);
+  await pick(page, "bath");
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Delete"); await page.waitForTimeout(80);
+  assert.equal(await item(page, "bath"), undefined);
+  // reset asks first
+  await page.click("#plan-reset");
+  assert.match(await page.locator("#plan-reset").innerText(), /Confirm/);
+  await page.click("#plan-reset"); await page.waitForTimeout(150);
+  d = await dump(page);
+  assert.equal(d["items/wc"].y, moved.y, "WC back where it was saved");
+  assert.ok(d["items/bath"], "bath back");
+  // undo the reset: the rearranged version returns
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Control+z"); await page.waitForTimeout(150);
+  d = await dump(page);
+  assert.equal(d["items/wc"].y, moved.y + 100);
+  assert.equal(d["items/bath"], undefined);
+  noErrors(errors); await ctx.close();
+});
+
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mNgYGAAAAAEAAHI6uv5AAAAAElFTkSuQmCC", "base64");
+test("pictures from ChatGPT: add from a file, paste, note, use in the brief, remove and undo", async () => {
+  const { page, ctx, errors } = await open("ensuite");
+  await page.setInputFiles("#vis-file", [{ name: "gpt-1.png", mimeType: "image/png", buffer: PNG }, { name: "gpt-2.png", mimeType: "image/png", buffer: PNG }]);
+  await page.waitForFunction(() => /2 pictures added/.test(document.getElementById("vis-status").textContent), null, { timeout: 8000 });
+  let d = await dump(page);
+  let vis = Object.entries(d).filter(([k]) => k.startsWith("visuals/"));
+  assert.equal(vis.length, 2);
+  assert.match(vis[0][1].chosen, /Avela oak wall-hung vanity 700/);
+  assert.match(vis[0][1].prompt, /FLOOR PLAN/);
+  assert.ok(vis.some(([, v]) => v.src === d["room/brief"].vis), "the first picture goes into the room brief");
+  await page.waitForFunction(() => document.querySelectorAll("#vis-grid .vis").length === 2);
+  // paste a picture copied from ChatGPT
+  await page.evaluate((b64) => {
+    const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    const dt = new DataTransfer(); dt.items.add(new File([a], "pasted.png", { type: "image/png" }));
+    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true }));
+  }, PNG.toString("base64"));
+  await page.waitForFunction(() => /Picture added/.test(document.getElementById("vis-status").textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => document.querySelectorAll("#vis-grid .vis").length === 3);
+  // note, then make another one the brief's picture
+  const first = page.locator("#vis-grid .vis").first();
+  await first.locator("input").fill("Tiles too dark"); await first.locator("input").press("Enter"); await first.locator("input").evaluate((e) => e.blur());
+  await page.waitForTimeout(100);
+  d = await dump(page);
+  assert.ok(Object.values(d).some((v) => v && v.note === "Tiles too dark"));
+  const id = await page.locator("#vis-grid .vis:has([data-vis-brief])").last().getAttribute("data-vis");
+  await page.click(`[data-vis-brief="${id}"]`); await page.waitForTimeout(100);
+  assert.equal((await dump(page))["room/brief"].vis, (await dump(page))["visuals/" + id].src);
+  assert.match(await page.locator(`[data-vis="${id}"]`).innerText(), /In the room brief/);
+  // remove it: the brief loses the picture; undo brings both back
+  await page.click(`[data-vis-del="${id}"]`); await page.waitForTimeout(100);
+  assert.equal((await dump(page))["visuals/" + id], undefined);
+  assert.equal((await dump(page))["room/brief"].vis, "");
+  await page.click("#toast-undo"); await page.waitForTimeout(150);
+  assert.ok((await dump(page))["visuals/" + id]);
+  assert.equal((await dump(page))["room/brief"].vis, (await dump(page))["visuals/" + id].src);
+  // something that isn't a picture is refused
+  await page.setInputFiles("#vis-file", { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
+  await page.waitForTimeout(100);
+  assert.match(await page.locator("#vis-status").innerText(), /isn't a picture/);
+  noErrors(errors); await ctx.close();
+});
