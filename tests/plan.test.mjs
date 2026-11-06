@@ -389,6 +389,12 @@ test("plan image underneath: set its scale from two points, then line it up", as
   const { page, ctx, errors } = await open("main-bathroom");
   let g = (await dump(page))["plan/geometry"];
   assert.ok(g.underlay && g.underlay.src, "the uploaded floor plan is under the drawing");
+  assert.equal(g.underlay.show, false, "hidden at the start: it shows where things were, not where they are");
+  assert.equal(await page.getAttribute("#plan-underlay", "aria-pressed"), "false");
+  await page.click("#plan-underlay");
+  await page.waitForTimeout(80);
+  assert.equal((await dump(page))["plan/geometry"].underlay.show, true);
+  assert.equal(await page.getAttribute("#plan-underlay", "aria-pressed"), "true");
   await page.click(".plan-settings summary");
   await page.click('#plan-insp [data-tool="calibrate"]');
   await page.waitForTimeout(150);

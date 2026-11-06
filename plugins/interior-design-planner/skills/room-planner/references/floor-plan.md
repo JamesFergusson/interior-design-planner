@@ -95,6 +95,7 @@ describes the walls as far, left, right and behind from here.
    has no clashes you didn't intend.
 6. Set `room.plan_file` to the drawing so it sits under the plan in the page (the person can set its scale there).
    If you know the drawing's scale, add `"underlay": {"mm_per_px": <mm per image pixel>, "x": <mm>, "y": <mm>}`.
+   It starts hidden when the plan has items (it shows their old positions); the "Plan image" button shows it.
 
 Tell the person to check the walls against a tape measure before ordering anything that has to fit.
 

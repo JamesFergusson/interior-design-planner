@@ -320,6 +320,7 @@ dialog h2{font-size:1.2rem}
             <button type="button" class="chip" id="plan-zoom-out" aria-label="Zoom out">−</button>
             <button type="button" class="chip" id="plan-zoom-in" aria-label="Zoom in">+</button>
             <button type="button" class="chip" id="plan-fit">Fit</button>
+            <button type="button" class="chip" id="plan-underlay" aria-pressed="false" hidden>Plan image</button>
             <button type="button" class="chip" id="plan-png" hidden>Save plan image</button>
           </div>
           <div class="plan-grid">
@@ -2004,6 +2005,9 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   function renderToolbar() {
     for (const b of document.querySelectorAll("#plan-tools [data-tool]")) b.setAttribute("aria-pressed", String(P.tool === b.dataset.tool));
     $("plan-undo").disabled = !P.hist.length; $("plan-redo").disabled = !P.fut.length;
+    const u = geom() && geom().underlay, ub = $("plan-underlay");
+    ub.hidden = !(u && RP.safeImg(u.src)); ub.setAttribute("aria-pressed", String(!!(u && u.show !== false)));
+    ub.title = u && u.show !== false ? "Hide the floor plan image under the drawing" : "Show the floor plan image under the drawing";
     let hint = HINTS[P.tool] || "";
     if (P.tool === "measure" && P.measure && P.measure.b) hint = `Distance: ${f(Math.hypot(P.measure.b.x - P.measure.a.x, P.measure.b.y - P.measure.a.y))} ${ul()}. Click to start a new measurement, or press Esc.`;
     $("plan-hint").textContent = hint;
@@ -2241,6 +2245,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
       case "plan-zoom-out": { const r = svg().getBoundingClientRect(); return zoomAt(r.left + r.width / 2, r.top + r.height / 2, 0.8); }
       case "plan-png": return savePng();
       case "plan-done": setTool("select"); return;
+      case "plan-underlay": return changeGeom((g) => { if (g.underlay) g.underlay.show = g.underlay.show === false; });
       case "plan-cal-go": return applyCalibration();
       case "add-kind": return addItem($("plan-kind").value);
       case "add-door": return addOpening("door");

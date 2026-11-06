@@ -375,8 +375,9 @@ def build_docs(data, types, photo_map):
         geometry, items, _, _, _ = build_plan(data, types, start)
         if geometry:
             if photo_map.get("room:plan"):
-                u = geometry.get("underlay") or {"x": 0, "y": 0, "mmPerPx": None, "opacity": 0.45, "show": True}
-                geometry["underlay"] = {**u, "src": photo_map["room:plan"]}
+                u = geometry.get("underlay") or {"x": 0, "y": 0, "mmPerPx": None, "opacity": 0.45}
+                # the drawing is for tracing and checking; once items are placed it would show their old positions
+                geometry["underlay"] = {**u, "src": photo_map["room:plan"], "show": not items}
             elif geometry.get("underlay"):
                 geometry.pop("underlay")
             docs.append(("plan", "geometry", geometry))
