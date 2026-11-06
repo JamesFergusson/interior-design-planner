@@ -674,9 +674,16 @@ def build_plan(data, types, start_sel):
                "follow": bool(it.get("follow", True)), "inset": bool(it.get("inset", False)), "order": i, "createdAt": 0}
         if it.get("cut"):
             doc["cut"] = it["cut"]
+        if it.get("attach"):
+            doc["attach"] = it["attach"]
         items.append((iid, doc))
         resolved.append({"id": iid, "label": label, "kind": kind, "w": w, "d": d, "h": h, "z": doc["z"], "x": r["x"], "y": r["y"], "rot": r["rot"], "shape": shape,
                          "cut": it.get("cut"), "flip": doc["flip"], "inset": doc["inset"], "layer": k.get("layer"), "where": r["where"], "sized_by": o.get("name") if size else None})
+    ids = {iid for iid, _ in items}
+    for iid, doc in items:
+        if doc.get("attach") and (doc["attach"] not in ids or doc["attach"] == iid):
+            errors.append(f"plan item {iid!r}: attach {doc['attach']!r} must be the id of another item in the plan ({', '.join(sorted(ids - {iid}))}).")
+    attached = {(iid, doc.get("attach")) for iid, doc in items if doc.get("attach")}
     # checks
     for r in resolved:
         pts = [p for part in world_parts(r) for p in part]
@@ -686,6 +693,8 @@ def build_plan(data, types, start_sel):
     for i in range(len(solid)):
         for j in range(i + 1, len(solid)):
             a, b = solid[i], solid[j]
+            if (a["id"], b["id"]) in attached or (b["id"], a["id"]) in attached:
+                continue
             if min(a["z"] + a["h"], b["z"] + b["h"]) - max(a["z"], b["z"]) > 0.5 and parts_overlap(world_parts(a), world_parts(b)):
                 warnings.append(f"plan items {a['label']!r} and {b['label']!r} overlap.")
     for w in divs:

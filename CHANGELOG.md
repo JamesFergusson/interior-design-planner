@@ -17,6 +17,12 @@ Floor plan.
 - Options gain a size and shape (form fields, link reading, setup script).
 - Setup script: a `plan` section in room.json (walls, partitions, openings, items placed against walls or by
   position, camera), checked for mistakes, clashes and door swings, and written to the planner.
+- Resize items by dragging handles on their edges and corners. Resizing something that takes its size from a
+  chosen product adds a "size to test" option to that part and chooses it, so a bigger shower can be tried
+  without a product; resizing again updates it, and picking a real product goes back.
+- Items can be attached to another (shower screens to their tray): they move, turn and resize with it, and a
+  wider product chosen in the list keeps its wall-side edge where it was.
+- Doors and windows: "+ Door" and "+ Window" on the toolbar, and handles on each edge to resize them by dragging.
 - Backup and restore include the floor plan.
 - Paint-chip labels pick whichever text colour reads better.
 

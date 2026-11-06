@@ -234,6 +234,10 @@ dialog h2{font-size:1.2rem}
 #plan-svg .sel-box{fill:none;stroke:var(--accent);stroke-width:1;stroke-dasharray:4 3;pointer-events:none}
 #plan-svg .handle{fill:var(--panel);stroke:var(--accent);stroke-width:2;cursor:grab}
 #plan-svg .handle.on{fill:var(--accent)}
+#plan-svg .handle.sq{cursor:nwse-resize}
+#plan-svg .handle.sq[data-h=l],#plan-svg .handle.sq[data-h=r]{cursor:ew-resize}
+#plan-svg .handle.sq[data-h=f],#plan-svg .handle.sq[data-h=b]{cursor:ns-resize}
+#plan-svg [data-hit=jamb]{cursor:ew-resize}
 #plan-svg .camera{cursor:move}
 #plan-svg .camera .cone{fill:var(--brass);fill-opacity:.07;stroke:var(--brass);stroke-width:1.5}
 #plan-svg .camera circle{fill:var(--brass)}
@@ -314,6 +318,8 @@ dialog h2{font-size:1.2rem}
             <button type="button" class="chip" data-tool="divider" aria-pressed="false">Draw partition</button>
             <button type="button" class="chip" data-tool="measure" aria-pressed="false">Measure</button>
             <button type="button" class="chip" data-tool="camera" aria-pressed="false">Place camera</button>
+            <button type="button" class="chip apply" data-act="add-door">+ Door</button>
+            <button type="button" class="chip apply" data-act="add-window">+ Window</button>
             <span class="sep" aria-hidden="true"></span>
             <button type="button" class="chip" id="plan-undo">Undo</button>
             <button type="button" class="chip" id="plan-redo">Redo</button>
@@ -606,7 +612,7 @@ const PLAN_KINDS = {"kinds":{"box":{"label":"Box (custom)","w":600,"d":600,"h":9
   const render = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderAll(); }); };
   RP._render = () => renderAll();
   RP._state = state;
-  RP.host = { db: () => db, downloads: () => downloads, assets: () => assets, toast: (t, u) => toast(t, u), dbMessage: (e) => dbMessage(e), render: () => render() };
+  RP.host = { db: () => db, downloads: () => downloads, assets: () => assets, toast: (t, u) => toast(t, u), dbMessage: (e) => dbMessage(e), render: () => render(), select: (patch) => writeSelection(patch) };
 
   function editingInside(node) { const a = document.activeElement; return a && node.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName); }
 
@@ -1549,6 +1555,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     const parts = new Map(solid.map((it) => [it.id, G.parts(it)]));
     for (let i = 0; i < solid.length; i++) for (let j = i + 1; j < solid.length; j++) {
       const a = solid[i], b = solid[j];
+      if (a.attach === b.id || b.attach === a.id) continue;
       if (vOverlap(a, b) && G.partsOverlap(parts.get(a.id), parts.get(b.id))) out.push({ kind: "clash", ids: [a.id, b.id], text: `${a.label} and ${b.label} overlap` });
     }
     if (m.corners.length >= 3) for (const it of items) {
@@ -1607,6 +1614,34 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     const ux = f.b.x - f.a.x, uy = f.b.y - f.a.y, L = Math.hypot(ux, uy) || 1, t = clamp(((c.x - f.a.x) * ux + (c.y - f.a.y) * uy) / (L * L), 0, 1);
     const foot = { x: f.a.x + ux * t, y: f.a.y + uy * t };
     return { ...it, rot: rr, x: Math.round(foot.x * 2) / 2, y: Math.round(foot.y * 2) / 2 };
+  };
+
+  // ---------- attached items ----------
+  // An item attached to another (a screen to a shower tray) keeps its place relative to that item's edges:
+  // tied to an edge it touches, or at the same fraction across; and an item that runs the full length of an edge
+  // stretches with it. hostBefore/hostAfter/it are resolved items; returns the attached item's new placement.
+  G.toLocal = (h, p) => { const q = rot(p.x - h.x, p.y - h.y, -(h.rot || 0)); return { x: h.flip ? -q.x : q.x, y: q.y }; };
+  G.attachPlace = (h0, h1, it) => {
+    const tol = 20, pts = G.outlinePts(it).map((p) => G.toLocal(h0, p));
+    const b = G.bbox(pts), hw0 = h0.w / 2, hw1 = h1.w / 2;
+    let rel = ((it.rot || 0) - (h0.rot || 0)) * (h0.flip ? -1 : 1);
+    rel = ((rel % 360) + 360) % 360;
+    const aligned = Math.round(rel / 90) % 2 === 0;
+    const spanX = b.w >= h0.w - 2 * tol && b.x0 <= -hw0 + tol && b.x1 >= hw0 - tol, spanY = b.h >= h0.d - 2 * tol && b.y0 <= tol && b.y1 >= h0.d - tol;
+    const ext = { x: spanX ? h1.w - (h0.w - b.w) : b.w, y: spanY ? h1.d - (h0.d - b.h) : b.h };
+    const cx = Math.abs(b.x1 - hw0) <= tol ? hw1 - (hw0 - b.x1) - ext.x / 2 : Math.abs(b.x0 + hw0) <= tol ? -hw1 + (b.x0 + hw0) + ext.x / 2 : ((b.x0 + b.x1) / 2) / h0.w * h1.w;
+    const cy = Math.abs(b.y1 - h0.d) <= tol ? h1.d - (h0.d - b.y1) - ext.y / 2 : Math.abs(b.y0) <= tol ? b.y0 + ext.y / 2 : ((b.y0 + b.y1) / 2) / h0.d * h1.d;
+    const out = {};
+    let w = it.w, d = it.d;
+    if (!it.sized) {
+      if (spanX) { if (aligned) w = ext.x; else d = ext.x; }
+      if (spanY) { if (aligned) d = ext.y; else w = ext.y; }
+      if (w !== it.w) out.w = Math.round(w * 2) / 2;
+      if (d !== it.d) out.d = Math.round(d * 2) / 2;
+    }
+    const r = (((h1.rot || 0) + (h1.flip ? -rel : rel)) % 360 + 360) % 360;
+    const c = G.toWorld(h1, { x: cx, y: cy }), back = rot(0, -d / 2, r);
+    return { ...out, rot: Math.round(r * 10) / 10, x: Math.round((c.x + back.x) * 2) / 2, y: Math.round((c.y + back.y) * 2) / 2 };
   };
 
   // ---------- symbols ----------
@@ -1709,7 +1744,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   const host = () => RP.host;
   const hs = () => RP._state;
   const P = (RP.planUI = {
-    view: null, sel: null, tool: "select", drag: null, temp: null, measure: null, draft: null, hist: [], fut: [], cal: null, built: false, rendered: false,
+    view: null, sel: null, tool: "select", drag: null, temp: null, measure: null, draft: null, hist: [], fut: [], cal: null, built: false, rendered: false, hostCache: {},
   });
   const units = () => (hs().room && hs().room.units) || "metric";
   const f = (mm) => G.fmt(mm, units());
@@ -1740,32 +1775,97 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   async function write(coll, id, data) {
     const db = host().db();
     if (!db) return;
+    if (coll === "selection") return host().select({ [id]: data || null });
     const ref = db.doc(coll + "/" + id);
     if (data == null) await ref.delete(); else await ref.set(clean(data));
   }
   function applyLocal(coll, id, data) {
     const s = hs();
     if (coll === "plan") s.plan = data;
+    else if (coll === "selection") s.selection[id] = data || null;
+    else if (coll === "options") { const i = s.options.findIndex((x) => x.id === id); if (data == null) { if (i >= 0) s.options.splice(i, 1); } else if (i >= 0) s.options[i] = { id, ...data }; else s.options.push({ id, ...data }); }
     else { const i = s.items.findIndex((x) => x.id === id); if (data == null) { if (i >= 0) s.items.splice(i, 1); } else if (i >= 0) s.items[i] = { id, ...data }; else s.items.push({ id, ...data }); }
   }
-  // changes: [{coll: "items"|"plan", id, before, after}]
+  // changes: [{coll: "items"|"plan"|"options"|"selection", id, before, after}]
   async function commit(changes, opts = {}) {
     changes = changes.filter((c) => JSON.stringify(c.before) !== JSON.stringify(c.after));
     if (!changes.length) return;
     for (const c of changes) applyLocal(c.coll, c.id, c.after);
-    if (!opts.noHistory) { P.hist.push(changes); if (P.hist.length > 200) P.hist.shift(); P.fut = []; }
-    render();
-    try { for (const c of changes) await write(c.coll, c.id, c.after); }
+    if (!opts.noHistory) { P.hist.push(changes); if (P.hist.length > 200) P.hist.shift(); P.fut = []; P.mergeNext = true; }
+    else if (opts.merge && P.mergeNext && P.hist.length && !P.undoing) P.hist[P.hist.length - 1] = P.hist[P.hist.length - 1].concat(changes.filter((c) => !P.hist[P.hist.length - 1].some((x) => x.coll === c.coll && x.id === c.id)));
+    if (changes.some((c) => c.coll === "options" || c.coll === "selection")) host().render(); else render();
+    const order = [...changes].sort((a, b) => (a.after == null) - (b.after == null));
+    try { for (const c of order) await write(c.coll, c.id, c.after); }
     catch (er) { host().toast(host().dbMessage(er)); }
   }
-  async function undo() { const ch = P.hist.pop(); if (!ch) return; P.fut.push(ch); await commit(ch.map((c) => ({ ...c, before: c.after, after: c.before })), { noHistory: true }); fixSel(); }
-  async function redo() { const ch = P.fut.pop(); if (!ch) return; P.hist.push(ch); await commit(ch, { noHistory: true }); fixSel(); }
+  // Undo and redo take everything one action changed, including attached items that followed it.
+  async function undo() { const ch = P.hist.pop(); if (!ch) return; P.fut.push(ch); P.undoing = true; try { syncCache(ch, "before"); await commit(ch.map((c) => ({ ...c, before: c.after, after: c.before })).reverse(), { noHistory: true }); } finally { P.undoing = false; } fixSel(); }
+  async function redo() { const ch = P.fut.pop(); if (!ch) return; P.hist.push(ch); P.undoing = true; try { syncCache(ch, "after"); await commit(ch, { noHistory: true }); } finally { P.undoing = false; } fixSel(); }
+  // After undo/redo the attached items are already where they belong: refresh the record of their hosts' shapes.
+  function syncCache(ch, which) { if (ch.some((c) => c.coll === "items" || c.coll === "options" || c.coll === "selection")) P.cacheReset = true; }
   RP.planUndo = undo; RP.planRedo = redo;
   const itemDoc = (id) => { const it = (hs().items || []).find((x) => x.id === id); return it ? strip(it) : null; };
   const geomDoc = () => (hs().plan ? clean(hs().plan) : null);
   const changeItem = (id, patch) => { const before = itemDoc(id); if (!before) return; return commit([{ coll: "items", id, before, after: { ...before, ...patch } }]); };
   const changeGeom = (fn) => { const before = geomDoc(); if (!before) return; const after = clean(before); fn(after); return commit([{ coll: "plan", id: "geometry", before, after }]); };
   const newId = (p) => p + "-" + Math.random().toString(36).slice(2, 8);
+  const optDoc = (id) => { const o = hs().options.find((x) => x.id === id); return o ? strip(o) : null; };
+  // Change an item's size (and, from a resize handle, its position). An item that takes its size from the chosen
+  // product can't change that product, so it gets a placeholder option with the new size, which becomes the choice.
+  P.applySize = async (id, patch) => {
+    const it = model().items.find((x) => x.id === id), doc = itemDoc(id); if (!it || !doc) return;
+    const size = { w: patch.w ?? it.w, d: patch.d ?? it.d, h: patch.h ?? it.h };
+    const pos = {}; if (isNum(patch.x)) pos.x = patch.x; if (isNum(patch.y)) pos.y = patch.y;
+    if (!(it.sized && it.part)) return commit([{ coll: "items", id, before: doc, after: { ...doc, ...pos, w: size.w, d: size.d, h: size.h } }]);
+    const part = it.part, o = it.option, name = `${part.name}: size to test, ${f(size.w)} × ${f(size.d)} mm`;
+    const sz = { w: size.w, d: size.d, ...(posNum(size.h) ? { h: size.h } : {}), from: "plan" };
+    const changes = [{ coll: "items", id, before: doc, after: { ...doc, ...pos } }];
+    if (o.source === "plan") changes.push({ coll: "options", id: o.id, before: optDoc(o.id), after: { ...optDoc(o.id), name, size: sz } });
+    else {
+      const oid = newId("test");
+      changes.push({ coll: "options", id: oid, before: null, after: { element: part.id, name, supplier: "", url: "", price: null, per: "item", covers: null, priceNote: "No product yet: a size tried in the floor plan", spec: "", note: `Started from ${o.name}`, size: sz, shape: o.shape || it.shape || "", status: "idea", source: "plan", image: "", createdAt: Date.now(), order: 1000 + hs().options.length } });
+      changes.push({ coll: "selection", id: part.id, before: o.id, after: oid });
+      host().toast(`Added “${name}” to ${part.name} and chose it. Pick a real product there to go back.`);
+    }
+    return commit(changes);
+  };
+  // Keep attached items in place when the thing they are attached to moves, turns or changes size, whatever changed it.
+  function reconcile() {
+    if (P.drag || P.temp) return;
+    const its = items(), by = Object.fromEntries(its.map((x) => [x.id, x]));
+    const changes = [];
+    // 1. A width that changed without a move (another product chosen, a width typed): keep the side that was
+    //    against a wall or another item where it was, instead of growing from the middle.
+    P.sizeCache = P.sizeCache || {};
+    for (const it of its) {
+      const prev = P.sizeCache[it.id], now = { w: it.w, d: it.d, x: it.x, y: it.y, rot: it.rot || 0 };
+      if (prev && prev.w !== now.w && prev.x === now.x && prev.y === now.y && prev.rot === now.rot) {
+        const old = { ...it, w: prev.w, d: prev.d };
+        const c = G.clearances(G.model(geom(), its.map((x) => (x.id === it.id ? old : x))), old);
+        const dirKey = (v) => (Math.abs(v.x) > 0.5 ? (v.x < 0 ? "left" : "right") : v.y < 0 ? "up" : "down");
+        const lv = rot(it.flip ? 1 : -1, 0, now.rot), rv = { x: -lv.x, y: -lv.y };
+        const flush = (v) => { const k = Math.abs(v.x) > 0.99 || Math.abs(v.y) > 0.99 ? c[dirKey(v)] : null; return !!(k && k.dist < 1); };
+        const L = flush(lv), R = flush(rv);
+        if (L !== R) {
+          const shift = ((now.w - prev.w) / 2) * (L ? 1 : -1), mv = rot(it.flip ? -shift : shift, 0, now.rot), doc = itemDoc(it.id);
+          if (doc) { const nx = Math.round((doc.x + mv.x) * 2) / 2, ny = Math.round((doc.y + mv.y) * 2) / 2; changes.push({ coll: "items", id: it.id, before: doc, after: { ...doc, x: nx, y: ny } }); now.x = nx; now.y = ny; }
+        }
+      }
+      P.sizeCache[it.id] = now;
+    }
+    if (changes.length) { commit(changes, { noHistory: true, merge: true }); return; }
+    const sig = (h) => [h.x, h.y, h.rot, h.w, h.d, h.flip ? 1 : 0, h.shape].join(",");
+    for (const hid of new Set(its.filter((x) => x.attach && by[x.attach] && x.attach !== x.id).map((x) => x.attach))) {
+      const h = by[hid], prev = P.hostCache[hid];
+      if (prev && prev.key !== sig(h)) for (const it of its.filter((x) => x.attach === hid)) {
+        const np = G.attachPlace(prev.h, h, it), doc = itemDoc(it.id);
+        if (doc && Object.keys(np).some((k) => doc[k] !== np[k])) changes.push({ coll: "items", id: it.id, before: doc, after: { ...doc, ...np } });
+      }
+      P.hostCache[hid] = { key: sig(h), h: { ...h } };
+    }
+    if (changes.length) commit(changes, { noHistory: true, merge: true });
+  }
+  P.reconcile = reconcile;
   function fixSel() { const s = P.sel; if (!s) return; const m = model(); const ok = s.t === "item" ? m.items.some((x) => x.id === s.id) : s.t === "corner" || s.t === "wall" ? m.corners.some((c) => c.id === s.id) : s.t === "divider" ? m.dividers.some((d) => d.id === s.id) : s.t === "opening" ? m.openings.some((o) => o.id === s.id) : s.t === "camera" ? !!(geom() && geom().camera) : true; if (!ok) P.sel = null; render(); }
 
   // ---------- starting a plan ----------
@@ -1934,13 +2034,20 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
           out += dimLine(from, { x: from.x + d[0] * v.dist, y: from.y + d[1] * v.dist }, f(v.dist), "dim clear", s);
         }
         out += `<rect class="sel-box" x="${r1(bb.x0)}" y="${r1(bb.y0)}" width="${r1(bb.w)}" height="${r1(bb.h)}"/>`;
+        // resize handles on the item's own edges and corners
+        const hw = it.w / 2, hs2 = fs(5);
+        for (const [h, lx, ly] of [["l", -hw, it.d / 2], ["r", hw, it.d / 2], ["b", 0, 0], ["f", 0, it.d], ["lb", -hw, 0], ["rb", hw, 0], ["lf", -hw, it.d], ["rf", hw, it.d]]) {
+          const q = G.toWorld(it, { x: lx, y: ly });
+          out += `<rect class="handle sq" data-hit="resize" data-h="${h}" data-id="${esc(it.id)}" x="${r1(q.x - hs2)}" y="${r1(q.y - hs2)}" width="${r1(2 * hs2)}" height="${r1(2 * hs2)}"/>`;
+        }
       }
     }
     if (P.tool === "select") {
       for (const w of m.walls) out += `<path class="hit-wall${sel && sel.t === "wall" && sel.id === w.id ? " selected" : ""}" data-hit="wall" data-id="${esc(w.id)}" d="M${r1(w.a.x - w.nx * T / 2)} ${r1(w.a.y - w.ny * T / 2)}L${r1(w.b.x - w.nx * T / 2)} ${r1(w.b.y - w.ny * T / 2)}" style="stroke-width:${r1(Math.max(T * s, 12))}px"/>`;
       if (sel && (sel.t === "wall" || sel.t === "corner")) for (const c of m.corners) out += `<circle class="handle${sel.t === "corner" && sel.id === c.id ? " on" : ""}" data-hit="corner" data-id="${esc(c.id)}" cx="${r1(c.x)}" cy="${r1(c.y)}" r="${fs(7)}"/>`;
       if (sel && sel.t === "divider") { const d = m.dividers.find((x) => x.id === sel.id); if (d) { out += [["a", d.a], ["b", d.b]].map(([e, p]) => `<circle class="handle" data-hit="div-end" data-end="${e}" data-id="${esc(d.id)}" cx="${r1(p.x)}" cy="${r1(p.y)}" r="${fs(7)}"/>`).join(""); out += dimLine(d.a, d.b, f(d.len), "dim clear", s, d.t / 2 + 16 / s, d.nx, d.ny); } }
-      if (sel && sel.t === "opening") { const o = m.openings.find((x) => x.id === sel.id); if (o) { const gg = G.openingGeom(o, o.w); if (gg.at > 0.4) out += dimLine(o.w.a, gg.j1, f(gg.at), "dim clear", s, 30 / s, o.w.nx, o.w.ny); const end = o.w.len - gg.at - gg.w; if (end > 0.4) out += dimLine(gg.j2, o.w.b, f(end), "dim clear", s, 30 / s, o.w.nx, o.w.ny); } }
+      if (sel && sel.t === "opening") { const o = m.openings.find((x) => x.id === sel.id); if (o) { const gg = G.openingGeom(o, o.w);
+        for (const [e, q] of [["a", gg.j1], ["b", gg.j2]]) out += `<circle class="handle" data-hit="jamb" data-end="${e}" data-id="${esc(o.id)}" cx="${r1(q.x)}" cy="${r1(q.y)}" r="${fs(6)}"/>`; if (gg.at > 0.4) out += dimLine(o.w.a, gg.j1, f(gg.at), "dim clear", s, 30 / s, o.w.nx, o.w.ny); const end = o.w.len - gg.at - gg.w; if (end > 0.4) out += dimLine(gg.j2, o.w.b, f(end), "dim clear", s, 30 / s, o.w.nx, o.w.ny); } }
       if (sel && sel.t === "camera" && cam) { const a = (cam.dir || 0) * Math.PI / 180; out += `<circle class="handle" data-hit="cam-dir" cx="${r1(cam.x + Math.sin(a) * 700)}" cy="${r1(cam.y - Math.cos(a) * 700)}" r="${fs(7)}"/>`; }
     }
     // tools in progress
@@ -1970,12 +2077,14 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   let raf = 0;
   function render() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; P.render(); }); }
   P.render = () => {
+    if (P.cacheReset) { P.cacheReset = false; P.hostCache = {}; P.sizeCache = {}; }
     const panel = $("plan"); if (!panel) return;
     build();
     const has = !!(hs().plan && Array.isArray(hs().plan.corners) && hs().plan.corners.length >= 3);
     $("plan-start").hidden = has; $("plan-body").hidden = !has;
     if (!has) return;
     loadUnderlay();
+    reconcile(); P.mergeNext = false;
     if (!P.view) fit();
     drawSvg(); renderToolbar();
     if (editing()) P.pendingInsp = true; else renderInspector();
@@ -1995,7 +2104,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     const img = new Image(); img.onload = () => { if (P.underlaySrc === u.src) { P.underlaySize = { w: img.naturalWidth, h: img.naturalHeight }; render(); } }; img.src = u.src;
   }
   const HINTS = {
-    select: "Drag things to move them; drag a wall to push it; select a wall to see its corners. Arrow keys nudge by 1 mm (Shift 10, Alt 100); R turns, F flips, Delete removes.",
+    select: "Drag things to move them, and the square handles to resize them; drag a door or window along its wall, or its round handles to resize it; drag a wall to push it. Arrow keys nudge by 1 mm (Shift 10, Alt 100); R turns, F flips, Delete removes.",
     divider: "Click where the partition starts, then where it ends. It snaps to the grid and keeps straight unless you hold Shift.",
     measure: "Click two points to measure between them. It snaps to corners and edges.",
     camera: "Click where you would stand, then drag towards what you would look at.",
@@ -2070,14 +2179,16 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     const parts = hs().elements;
     const k = KINDS[it.kind] || KINDS.box;
     const c = G.clearances(m, it);
-    const dis = it.sized ? "disabled" : "";
+    const dis = "";
+    const kids = m.items.filter((x) => x.attach === it.id);
+    const hostOpts = m.items.filter((x) => x.id !== it.id && x.attach !== it.id);
     const sz = it.option && it.option.size;
     const gapField = (key, label) => c[key] ? `<label class="field"><span>${label}${c[key] ? " <small>to " + esc(c[key].name) + "</small>" : ""}</span><input data-f="gap-${key}" inputmode="decimal" value="${esc(f(c[key].dist))}"></label>` : "";
     return `<h3>${esc(it.label)}</h3>
       ${problemsHtml(m, (p) => p.ids.includes(it.id))}
       <label class="field"><span>Name</span><input data-f="name" value="${esc(it.name || "")}" placeholder="${esc((it.part && it.part.name) || k.label)}"></label>
       <label class="field"><span>Part of the room</span><select data-f="element"><option value="">Not linked</option>${parts.map((e) => `<option value="${esc(e.id)}" ${e.id === it.element ? "selected" : ""}>${esc(e.name)}</option>`).join("")}</select></label>
-      ${it.part ? (it.option ? (sz && posNum(sz.w) && posNum(sz.d) ? `<label class="check"><input type="checkbox" data-f="follow" ${it.follow !== false ? "checked" : ""}> Use the chosen product's size: ${esc(it.option.name)}, ${f(sz.w)} × ${f(sz.d)}${posNum(sz.h) ? " × " + f(sz.h) : ""} ${ul()}</label>` : `<p class="hint">The chosen product (${esc(it.option.name)}) has no size yet. Add one with Edit on its card, or type the size here.</p>`) : `<p class="hint">Nothing chosen for ${esc(it.part.name)} yet; when you choose a product with a size, this takes its size.</p>`) : ""}
+      ${it.part ? (it.option ? (sz && posNum(sz.w) && posNum(sz.d) ? `<label class="check"><input type="checkbox" data-f="follow" ${it.follow !== false ? "checked" : ""}> Use the chosen product's size: ${esc(it.option.name)}, ${f(sz.w)} × ${f(sz.d)}${posNum(sz.h) ? " × " + f(sz.h) : ""} ${ul()}</label>${it.follow !== false ? `<p class="hint">To try another size, drag a handle or type it below: ${it.option.source === "plan" ? "this size-to-test option changes with it" : `that adds a size-to-test option to ${esc(it.part.name)}`}.</p>` : ""}` : `<p class="hint">The chosen product (${esc(it.option.name)}) has no size yet. Add one with Edit on its card, or type the size here.</p>`) : `<p class="hint">Nothing chosen for ${esc(it.part.name)} yet; when you choose a product with a size, this takes its size.</p>`) : ""}
       <div class="form-grid tight">
         ${num(`Width (${ul()})`, "w", f(it.w), dis)}${num(`Depth (${ul()})`, "d", f(it.d), dis)}${num(`Height (${ul()})`, "h", f(it.h), dis)}
         ${num(`Off the floor (${ul()})`, "z", f(it.z || 0))}
@@ -2085,6 +2196,8 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
         <label class="field"><span>Shape</span><select data-f="shape" ${dis}>${SHAPES.map(([v, l]) => `<option value="${v}" ${it.shape === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         ${it.shape === "L" ? num(`Cut-out width (${ul()})`, "cut-w", f((it.cut && it.cut.w) || it.w / 2)) + num(`Cut-out depth (${ul()})`, "cut-d", f((it.cut && it.cut.d) || it.d / 2)) : ""}
         <label class="check wide2"><input type="checkbox" data-f="inset" ${it.inset ? "checked" : ""}> Built into a unit or worktop (no clash warnings)</label>
+        <label class="field wide2"><span>Moves and resizes with</span><select data-f="attach"><option value="">Nothing: moves on its own</option>${hostOpts.map((x) => `<option value="${esc(x.id)}" ${it.attach === x.id ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
+        ${kids.length ? `<p class="hint wide2">Moves and resizes with it: ${kids.map((x) => `<button type="button" class="link-btn" data-pick="item:${esc(x.id)}">${esc(x.label)}</button>`).join(", ")}</p>` : ""}
         <label class="field"><span>Symbol</span><select data-f="kind">${Object.entries(KINDS).map(([kk, v]) => `<option value="${kk}" ${kk === it.kind ? "selected" : ""}>${esc(v.label)}</option>`).join("")}</select></label>
       </div>
       <h4>Clear space around it (${ul()})</h4>
@@ -2167,7 +2280,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   async function addOpening(type) {
     const m = model();
     let wall = P.sel && (P.sel.t === "wall" || P.sel.t === "divider") ? m.byId[P.sel.id] : null;
-    if (!wall) wall = [...m.walls].sort((a, b) => b.len - a.len)[0];
+    if (!wall) { const c = centreOfView(); wall = [...m.walls].sort((a, b) => G.distToSeg(c, a.a, a.b) - G.distToSeg(c, b.a, b.b))[0]; }
     if (!wall) return;
     const width = Math.min(type === "window" ? 1200 : 762, Math.max(100, wall.len - 100));
     const op = { id: newId("op"), type, wall: wall.id, at: snapG(Math.max(0, (wall.len - width) / 2)), width, side: 1, hinge: "start", style: "hinged" };
@@ -2289,7 +2402,9 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
       if (k === "inset") return changeItem(s.id, { inset: t.checked });
       if (k === "rot") { const n = RP.parseNum(v); if (n == null) return bad(); const c = G.centre(it), r = ((n % 360) + 360) % 360, back = rot(0, -it.d / 2, r); return changeItem(s.id, { rot: r, x: Math.round((c.x + back.x) * 2) / 2, y: Math.round((c.y + back.y) * 2) / 2 }); }
       if (k.startsWith("cut-")) { const n = L(v); if (!posNum(n)) return bad(); return changeItem(s.id, { cut: { w: it.cut && it.cut.w || it.w / 2, d: it.cut && it.cut.d || it.d / 2, [k.slice(4)]: n } }); }
-      if (k === "w" || k === "d" || k === "h" || k === "z") { const n = L(v); if (n == null || n < 0 || (k !== "z" && n === 0)) return bad(); return changeItem(s.id, { [k]: n }); }
+      if (k === "w" || k === "d" || k === "h") { const n = L(v); if (!posNum(n)) return bad(); return P.applySize(s.id, { [k]: n }); }
+      if (k === "z") { const n = L(v); if (n == null || n < 0) return bad(); return changeItem(s.id, { z: n }); }
+      if (k === "attach") return changeItem(s.id, { attach: v || "" });
       if (k.startsWith("gap-")) {
         const n = L(v); if (n == null || n < 0) return bad();
         const dir = k.slice(4), c = G.clearances(m, it)[dir]; if (!c) return;
@@ -2343,6 +2458,9 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
 
   // ---------- pointer ----------
   const pointers = new Map();
+  // Items attached to this one, as stored (not as currently being dragged).
+  const attachedTo = (id) => (hs().items || []).filter((x) => x.attach === id && x.id !== id).map(P.resolve);
+  function svgHit(e) { const t = e.target.closest && e.target.closest("[data-hit]"); return t ? t.dataset : {}; }
   function hitOf(e) { const t = e.target.closest && e.target.closest("[data-hit]"); return t ? { t: t.dataset.hit, id: t.dataset.id, end: t.dataset.end } : null; }
   // Snap a free point to corners, item corners and partition ends nearby, otherwise to the grid.
   function snapPoint(p, free) {
@@ -2387,6 +2505,8 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     if (P.tool === "calibrate") { if (P.cal.pts.length >= 2) P.cal.pts = []; P.cal.pts.push(p); render(); if (P.cal.pts.length === 2) setTimeout(() => $("plan-cal-mm").focus(), 30); return; }
     if (P.tool === "move-underlay") { const u = geom().underlay; P.drag = { kind: "underlay", ...start, u0: { x: u.x || 0, y: u.y || 0 } }; return; }
     if (!hit) { P.drag = { kind: "pan", ...start, v0: { ...P.view } }; return; }
+    if (hit.t === "resize") { const it = m.items.find((x) => x.id === hit.id); if (!it) return; P.drag = { kind: "resize", ...start, id: hit.id, h: svgHit(e).h, r0: it, it0: itemDoc(hit.id) }; return; }
+    if (hit.t === "jamb") { const o = m.openings.find((x) => x.id === hit.id); if (!o) return; P.drag = { kind: "jamb", ...start, id: hit.id, end: hit.end, g0: geomDoc(), o0: { at: G.openingGeom(o, o.w).at, width: G.openingGeom(o, o.w).w, len: o.w.len, ux: o.w.ux, uy: o.w.uy } }; return; }
     if (hit.t === "item") { const it = m.items.find((x) => x.id === hit.id); P.sel = { t: "item", id: hit.id }; P.drag = { kind: "item", ...start, id: hit.id, it0: itemDoc(hit.id), off: { x: p.x - it.x, y: p.y - it.y } }; render(); return; }
     if (hit.t === "corner") { P.sel = { t: "corner", id: hit.id }; P.drag = { kind: "corner", ...start, id: hit.id, g0: geomDoc() }; render(); return; }
     if (hit.t === "wall") { P.sel = { t: "wall", id: hit.id }; P.drag = { kind: "wall", ...start, id: hit.id, g0: geomDoc() }; render(); return; }
@@ -2411,11 +2531,37 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     D.moved = true;
     const p = toMm(e), dx = p.x - D.p.x, dy = p.y - D.p.y, m = model();
     if (D.kind === "pan") { P.view = { ...D.v0, cx: D.v0.cx - (e.clientX - D.px) / D.v0.s, cy: D.v0.cy - (e.clientY - D.py) / D.v0.s }; drawSvg(); return; }
-    if (D.kind === "item") {
+    if (D.kind === "resize") {
+      const r0 = D.r0, step = e.shiftKey ? 1 : grid();
+      let l = rot(dx, dy, -(r0.rot || 0)); if (r0.flip) l = { x: -l.x, y: l.y };
+      let w = r0.w, d = r0.d, sx = 0, sy = 0;
+      const sn = (v) => Math.max(10, Math.round(v / step) * step);
+      if (D.h.includes("r")) { w = sn(r0.w + l.x); sx = (w - r0.w) / 2; }
+      if (D.h.includes("l")) { w = sn(r0.w - l.x); sx = -(w - r0.w) / 2; }
+      if (D.h.includes("f")) d = sn(r0.d + l.y);
+      if (D.h.includes("b")) { d = sn(r0.d - l.y); sy = -(d - r0.d); }
+      const mv = rot(r0.flip ? -sx : sx, sy, r0.rot || 0);
+      const nx = Math.round((r0.x + mv.x) * 2) / 2, ny = Math.round((r0.y + mv.y) * 2) / 2;
+      const temp = { [D.id]: { ...D.it0, follow: false, w, d, h: r0.h, shape: r0.shape, x: nx, y: ny } };
+      const h1 = { ...r0, w, d, x: nx, y: ny };
+      for (const a of attachedTo(D.id)) temp[a.id] = { ...itemDoc(a.id), ...G.attachPlace(r0, h1, a) };
+      P.temp = { items: temp }; D.result = { w, d, x: nx, y: ny };
+      $("plan-hint").textContent = `${f(w)} × ${f(d)} ${ul()}`;
+    } else if (D.kind === "jamb") {
+      const g = clean(D.g0), op = g.openings.find((x) => x.id === D.id), o0 = D.o0;
+      const along = dx * o0.ux + dy * o0.uy, sn = (v) => (e.shiftKey ? Math.round(v) : snapG(v));
+      if (D.end === "a") { const a = clamp(sn(o0.at + along), 0, o0.at + o0.width - 100); op.at = a; op.width = o0.at + o0.width - a; }
+      else { op.width = clamp(sn(o0.width + along), 100, o0.len - o0.at); }
+      P.temp = { geom: g };
+      $("plan-hint").textContent = `${op.type === "window" ? "Window" : op.type === "door" ? "Door" : "Opening"} ${f(op.width)} ${ul()} wide`;
+    } else if (D.kind === "item") {
       const raw = { ...D.it0, x: D.it0.x + dx, y: D.it0.y + dy };
       const r = P.resolve({ id: D.id, ...raw });
       const s = e.altKey ? { x: Math.round(raw.x), y: Math.round(raw.y) } : P.snapItem(r, m);
-      P.temp = { items: { [D.id]: { ...D.it0, x: s.x, y: s.y } } };
+      const temp = { [D.id]: { ...D.it0, x: s.x, y: s.y } };
+      const h0 = D.r0 || (D.r0 = P.resolve({ id: D.id, ...D.it0 })), h1 = { ...h0, x: s.x, y: s.y };
+      for (const a of attachedTo(D.id)) temp[a.id] = { ...itemDoc(a.id), ...G.attachPlace(h0, h1, a) };
+      P.temp = { items: temp };
     } else if (D.kind === "corner") {
       const g = clean(D.g0), c = g.corners.find((x) => x.id === D.id), c0 = D.g0.corners.find((x) => x.id === D.id), i = g.corners.indexOf(c);
       let q = { x: c0.x + dx, y: c0.y + dy };
@@ -2468,6 +2614,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     }
     const temp = P.temp; P.temp = null;
     if (D.kind === "pan") { render(); return; }
+    if (D.kind === "resize" && D.result) { await P.applySize(D.id, D.result); return; }
     if (D.kind === "item" && temp && temp.items) { const after = temp.items[D.id]; await commit([{ coll: "items", id: D.id, before: D.it0, after }]); return; }
     if (temp && temp.geom) { const before = D.g0 || geomDoc(); await commit([{ coll: "plan", id: "geometry", before, after: temp.geom }]); return; }
     render();

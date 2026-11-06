@@ -64,6 +64,10 @@ Every item is a box (or one of the other shapes) at its real size. Give:
   `"follow": false` (keep this size whatever product is chosen, e.g. a 600 mm unit housing an integrated fridge).
 - `shape`: `rect` (default), `rounded`, `round`, `quadrant` (corner shower: straight back and left side, curved
   front) or `L` (with `"cut": {"w": .., "d": ..}`, the missing front-right corner). `flip: true` mirrors it.
+- `attach`: the `id` of another item this one belongs to (a shower screen to its tray, a mirror to a vanity). It
+  then moves, turns and resizes with that item: tied to the edge it touches, and stretched if it runs the full
+  length of an edge. Give the host item an `id` so you can refer to it (otherwise its id is its name in lowercase
+  with hyphens, e.g. `shower-tray`).
 - `inset: true` for something built into a unit or worktop (an integrated dishwasher, an undermount sink), so it
   isn't reported as clashing with the unit.
 - Position, one of:

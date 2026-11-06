@@ -34,7 +34,10 @@ async function drag(page, from, to, steps = 8, opts = {}) {
   if (opts.shift) await page.keyboard.up("Shift");
   await page.waitForTimeout(60);
 }
-const pick = async (page, id) => { await page.click(`[data-pick="item:${id}"]`); await page.waitForTimeout(60); };
+const pick = async (page, id) => {
+  if (await page.locator('#plan-insp [data-act="desel"]').count()) { await page.click('#plan-insp [data-act="desel"]'); await page.waitForTimeout(60); }
+  await page.click(`[data-pick="item:${id}"]`); await page.waitForTimeout(60);
+};
 const setField = async (page, f, v) => { const l = page.locator(`#plan-insp [data-f="${f}"]`); await l.fill(String(v)); await l.press("Enter"); await l.evaluate((e) => e.blur()); await page.waitForTimeout(60); };
 
 // ---------- geometry ----------
@@ -489,5 +492,136 @@ test("accessibility scan with a floor plan", async () => {
   const res = await page.evaluate(async () => (await window.axe.run(document, { resultTypes: ["violations"] })).violations.map((v) => ({ id: v.id, impact: v.impact, n: v.nodes.length, sample: v.nodes[0] && v.nodes[0].html.slice(0, 160) })));
   fs.writeFileSync(path.join(OUT, "axe-plan.json"), JSON.stringify(res, null, 2));
   assert.deepEqual(res.filter((v) => v.impact === "serious" || v.impact === "critical"), []);
+  noErrors(errors); await ctx.close();
+});
+
+// ---------- resizing, size-to-test options, attached items ----------
+const handleAt = async (page, sel) => { const b = await page.locator(sel).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+const box = (page, id) => page.evaluate((id) => { const G = window.RoomPlanner.geo, m = window.RoomPlanner.planModel(); const b = G.itemBox(m.items.find((x) => x.id === id)); return [b.x0, b.y0, b.x1, b.y1].map((v) => Math.round(v * 10) / 10); }, id);
+
+test("resize handles: dragging an edge changes the size, the opposite edge stays put", async () => {
+  const { page, ctx, errors } = await open("main-bathroom");
+  await setView(page, 1500, 3700, 0.5);
+  await pick(page, "built-in-cupboard");
+  assert.deepEqual(await box(page, "built-in-cupboard"), [1750, 3417, 2300, 4115]);
+  // the cupboard faces up the plan (turned 180°), so its own right-hand edge is on the plan's left
+  const h = await handleAt(page, '[data-hit=resize][data-h=r][data-id="built-in-cupboard"]');
+  await drag(page, h, { x: h.x - 25, y: h.y }); // 25 px = 50 mm
+  assert.deepEqual(await box(page, "built-in-cupboard"), [1700, 3417, 2300, 4115]);
+  assert.equal((await item(page, "built-in-cupboard")).w, 600);
+  // front edge (towards the bath end of the room) pulled in by 100 mm
+  await pick(page, "built-in-cupboard");
+  const f = await handleAt(page, '[data-hit=resize][data-h=f][data-id="built-in-cupboard"]');
+  await drag(page, f, { x: f.x, y: f.y + 50 });
+  // the front faces up the plan, so dragging that handle 50 px down pulls the front in by 100 mm: 698 - 100 = 598, on the 10 mm grid 600
+  assert.equal((await item(page, "built-in-cupboard")).d, 600);
+  noErrors(errors); await ctx.close();
+});
+
+test("resizing a product-sized tray makes a size-to-test option, and the screens resize with it", async () => {
+  const { page, ctx, errors } = await open("main-bathroom");
+  await setView(page, 900, 1600, 0.5);
+  await pick(page, "shower-tray");
+  const h = await handleAt(page, '[data-hit=resize][data-h=r][data-id="shower-tray"]');
+  await drag(page, h, { x: h.x + 100, y: h.y }); // 200 mm wider
+  await page.waitForTimeout(150);
+  let d = await dump(page);
+  const tests = Object.entries(d).filter(([k, v]) => k.startsWith("options/") && v.source === "plan");
+  assert.equal(tests.length, 1);
+  const [key, opt] = tests[0];
+  assert.deepEqual(opt.size, { w: 1000, d: 800, h: 40, from: "plan" });
+  assert.match(opt.name, /Shower tray: size to test, 1000 × 800 mm/);
+  assert.equal(d["state/selection"].map.tray, key.slice(8), "the test size is chosen");
+  assert.match(await page.locator(".opt.is-chosen", { hasText: "size to test" }).innerText(), /1000 × 800 × 40 mm/);
+  assert.deepEqual(await box(page, "shower-tray"), [0, 1100, 1000, 1900]);
+  assert.deepEqual(await box(page, "shower-door"), [0, 1890, 1000, 1900], "door stays on the front edge and stretches");
+  assert.deepEqual(await box(page, "shower-side-panel"), [990, 1100, 1000, 1890], "side panel follows the right edge");
+  // a second resize changes the same test option rather than adding another
+  await pick(page, "shower-tray");
+  const f = await handleAt(page, '[data-hit=resize][data-h=f][data-id="shower-tray"]');
+  await drag(page, f, { x: f.x, y: f.y + 50 });
+  await page.waitForTimeout(150);
+  d = await dump(page);
+  assert.equal(Object.values(d).filter((v) => v && v.source === "plan").length, 1);
+  assert.deepEqual(d[key].size, { w: 1000, d: 900, h: 40, from: "plan" });
+  assert.deepEqual(await box(page, "shower-side-panel"), [990, 1100, 1000, 1990], "side panel stretches with the depth");
+  assert.deepEqual(await box(page, "shower-door"), [0, 1990, 1000, 2000]);
+  // undo twice: back to the original tray, test option gone, screens back
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Control+z"); await page.waitForTimeout(150);
+  await page.keyboard.press("Control+z"); await page.waitForTimeout(200);
+  d = await dump(page);
+  assert.equal(d["state/selection"].map.tray, "tray-harbour");
+  assert.equal(d[key], undefined);
+  assert.deepEqual(await box(page, "shower-door"), [0, 1890, 800, 1900]);
+  assert.deepEqual(await box(page, "shower-side-panel"), [790, 1100, 800, 1890]);
+  noErrors(errors); await ctx.close();
+});
+
+test("typing a new size on a product-sized item also makes a size-to-test option", async () => {
+  const { page, ctx, errors } = await open("ensuite");
+  await pick(page, "vanity-and-basin");
+  await setField(page, "w", "800");
+  const d = await dump(page);
+  const t = Object.entries(d).find(([k, v]) => k.startsWith("options/") && v.source === "plan");
+  assert.ok(t);
+  assert.deepEqual(t[1].size, { w: 800, d: 460, h: 500, from: "plan" });
+  assert.equal(d["items/vanity-and-basin"].follow, true);
+  noErrors(errors); await ctx.close();
+});
+
+test("attached items move with their host, and follow a different product chosen in the list", async () => {
+  const { page, ctx, errors } = await open("main-bathroom");
+  // choose the 1000 mm tray in the options list
+  await page.locator('input[type=radio][value="tray-harbour-1000"]').check({ force: true });
+  await page.waitForTimeout(200);
+  assert.deepEqual(await box(page, "shower-door"), [0, 1890, 1000, 1900]);
+  assert.deepEqual(await box(page, "shower-side-panel"), [990, 1100, 1000, 1890]);
+  // nudge the tray down 10 mm with the keyboard: both screens come with it
+  await pick(page, "shower-tray");
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.waitForTimeout(200);
+  assert.deepEqual(await box(page, "shower-door"), [0, 1900, 1000, 1910]);
+  assert.deepEqual(await box(page, "shower-side-panel"), [990, 1110, 1000, 1900]);
+  // no clash reported between the tray and its own screens
+  await page.click('#plan-insp [data-act="desel"]');
+  await page.waitForTimeout(60);
+  assert.equal(await page.locator(".plan-probs li").count(), 0, await page.locator("#plan-insp").innerText());
+  // attach the towel rail to the WC through the inspector, then detach
+  await pick(page, "heated-towel-rail");
+  await page.selectOption('#plan-insp [data-f="attach"]', "wc");
+  await page.waitForTimeout(80);
+  assert.equal((await item(page, "heated-towel-rail")).attach, "wc");
+  await pick(page, "wc");
+  assert.match(await page.locator("#plan-insp").innerText(), /Moves and resizes with it: Heated towel rail/);
+  noErrors(errors); await ctx.close();
+});
+
+test("doors and windows: add from the toolbar, resize by dragging an edge, move, remove", async () => {
+  const { page, ctx, errors } = await open("ensuite");
+  await setView(page, 1300, 650, 0.25);
+  await page.click('#plan-tools [data-act="add-window"]');
+  await page.waitForTimeout(80);
+  let w = (await model(page)).openings.find((o) => o.type === "window");
+  assert.ok(w, "window added");
+  // resize: drag its far edge 25 px = 100 mm
+  const h = await handleAt(page, `[data-hit=jamb][data-end=b][data-id="${w.id}"]`);
+  const wall = (await model(page)).walls.find((x) => x.id === w.wall);
+  const ux = { c1: [1, 0], c2: [0, 1], c3: [-1, 0], c4: [0, -1] }[w.wall];
+  await drag(page, h, { x: h.x + ux[0] * 25, y: h.y + ux[1] * 25 });
+  let w2 = (await model(page)).openings.find((o) => o.id === w.id);
+  assert.equal(w2.width, Math.min(w.width + 100, wall.len - w.at));
+  assert.equal(w2.at, w.at, "the near edge stays put");
+  // the near edge: drag it 25 px back along the wall: wider again, starting earlier
+  const a = await handleAt(page, `[data-hit=jamb][data-end=a][data-id="${w.id}"]`);
+  await drag(page, a, { x: a.x - ux[0] * 25, y: a.y - ux[1] * 25 });
+  const w3 = (await model(page)).openings.find((o) => o.id === w.id);
+  assert.deepEqual([w3.at, w3.width], [w2.at - 100, w2.width + 100]);
+  // remove with the Delete key
+  await page.locator("#plan-svg").focus();
+  await page.keyboard.press("Delete");
+  await page.waitForTimeout(80);
+  assert.equal((await model(page)).openings.some((o) => o.id === w.id), false);
   noErrors(errors); await ctx.close();
 });
