@@ -195,6 +195,9 @@ dialog h2{font-size:1.2rem}
 .plan-settings{display:grid;gap:8px}
 .plan-settings[open]{gap:10px}
 .qty-plan{font-size:.82rem}
+.plan-versions{border:1px solid var(--rule);border-radius:8px;background:var(--ground);padding:10px 12px;display:grid;gap:6px;justify-self:start;max-width:100%}
+.plan-versions ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.plan-versions small{color:var(--quiet);font-family:var(--mono)}
 .vis-block{display:grid;gap:10px;border-top:1px solid var(--rule);padding-top:14px}
 .vis-block h3{font-size:1rem;font-weight:700}
 .vis-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
@@ -338,8 +341,9 @@ dialog h2{font-size:1.2rem}
             <button type="button" class="chip" id="plan-underlay" aria-pressed="false" hidden>Plan image</button>
             <button type="button" class="chip" id="plan-png" hidden>Save plan image</button>
             <button type="button" class="chip" id="plan-save" title="Make this layout the room's plan: the room brief shows it, and Reset comes back to it">Save to room brief</button>
-            <button type="button" class="chip" id="plan-reset" title="Put the layout back to the plan saved in the room brief">Reset to brief plan</button>
+            <button type="button" class="chip" id="plan-reset" aria-expanded="false" aria-controls="plan-versions">Go back to…</button>
           </div>
+          <div class="plan-versions" id="plan-versions" hidden></div>
           <div class="plan-grid">
             <div class="plan-canvas">
               <svg id="plan-svg" tabindex="0" role="application" aria-label="Floor plan. Choose an item from the list beside the plan, then use the arrow keys to move it." aria-describedby="plan-hint" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -613,7 +617,7 @@ const PLAN_KINDS = {"kinds":{"box":{"label":"Box (custom)","w":600,"d":600,"h":9
 
   // ---------- state ----------
   const state = {
-    room: null, roomLoaded: false, elements: [], options: [], presets: [], inbox: [], selection: {}, selectionExists: false, plan: null, items: [], planSaved: null, visuals: [],
+    room: null, roomLoaded: false, elements: [], options: [], presets: [], inbox: [], selection: {}, selectionExists: false, plan: null, items: [], planSaved: null, visuals: [], planVersions: [],
     loaded: { el: false, opt: false }, filter: "active",
   };
   let db = null, assets = null, downloads = null, mcp = null, sample = null;
@@ -1272,7 +1276,7 @@ const PLAN_KINDS = {"kinds":{"box":{"label":"Box (custom)","w":600,"d":600,"h":9
   RP.exportBackup = () => ({
     format: "room-planner-backup", version: 1, appVersion: VERSION, exportedAt: new Date().toISOString(),
     room: state.room, elements: state.elements, options: state.options, presets: state.presets, selection: state.selection,
-    plan: state.plan || null, items: state.items || [], planSaved: state.planSaved || null, visuals: state.visuals || [],
+    plan: state.plan || null, items: state.items || [], planSaved: state.planSaved || null, visuals: state.visuals || [], planVersions: state.planVersions || [],
   });
   RP.validateBackup = (b) => {
     if (!b || b.format !== "room-planner-backup") return "That file isn't a Room Planner backup.";
@@ -1305,6 +1309,9 @@ const PLAN_KINDS = {"kinds":{"box":{"label":"Box (custom)","w":600,"d":600,"h":9
     for (const [coll, list] of [["options", state.options], ["elements", state.elements], ["presets", state.presets], ["items", state.items || []]]) for (const x of list) if (!keep[coll].has(x.id)) await db.doc(`${coll}/${x.id}`).delete();
     for (const x of bItems) await db.doc("items/" + x.id).set(strip(x));
     if (b.plan && typeof b.plan === "object") await db.doc("plan/geometry").set(b.plan); else if (state.plan) await db.doc("plan/geometry").delete();
+    const bVer = Array.isArray(b.planVersions) ? b.planVersions.filter((x) => x && typeof x.id === "string" && /^[A-Za-z0-9_\-.~:@+]{1,200}$/.test(x.id)) : [];
+    for (const x of state.planVersions || []) if (!bVer.some((y) => y.id === x.id)) await db.doc("planVersions/" + x.id).delete();
+    for (const x of bVer) await db.doc("planVersions/" + x.id).set(strip(x));
     const bVis = Array.isArray(b.visuals) ? b.visuals.filter((x) => x && typeof x.id === "string" && /^[A-Za-z0-9_\-.~:@+]{1,200}$/.test(x.id)) : [];
     for (const x of state.visuals || []) if (!bVis.some((y) => y.id === x.id)) await db.doc("visuals/" + x.id).delete();
     for (const x of bVis) await db.doc("visuals/" + x.id).set(strip(x));
@@ -1427,8 +1434,9 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     db.collection("inbox").onSnapshot((s) => { state.inbox = docs(s); render(); }, fail);
     db.doc("plan/geometry").onSnapshot((d) => { state.plan = d.exists ? d.data() : null; render(); }, fail);
     db.collection("visuals").onSnapshot((s) => { state.visuals = docs(s); render(); }, fail);
+    db.collection("planVersions").onSnapshot((s) => { state.planVersions = docs(s); state.loaded.versions = true; render(); }, fail);
     db.doc("plan/saved").onSnapshot((d) => { state.planSaved = d.exists ? d.data() : null; render(); }, fail);
-    db.collection("items").onSnapshot((s) => { state.items = docs(s).sort((a, b) => (isNum(a.order) ? a.order : 0) - (isNum(b.order) ? b.order : 0)); render(); }, fail);
+    db.collection("items").onSnapshot((s) => { state.loaded.items = true; state.items = docs(s).sort((a, b) => (isNum(a.order) ? a.order : 0) - (isNum(b.order) ? b.order : 0)); render(); }, fail);
     db.doc("state/selection").onSnapshot((d) => { state.selectionExists = d.exists; const m = d.exists && d.data().map; state.selection = m && typeof m === "object" ? { ...m } : {}; render(); }, fail);
     [assets, downloads, mcp, sample] = await Promise.all(["assets", "downloads", "mcp", "sample"].map((n) => window.claude.use(n).catch(() => null)));
     $("gpt-board").hidden = !downloads; $("csv-btn").hidden = !downloads; $("backup-save").hidden = !downloads; $("plan-png").hidden = !downloads;
@@ -2168,6 +2176,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     $("plan-start").hidden = has; $("plan-body").hidden = !has;
     if (!has) return;
     loadUnderlay();
+    P.capture();
     reconcile(); P.mergeNext = false;
     if (!P.view) fit();
     drawSvg(); renderToolbar();
@@ -2198,9 +2207,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   function renderToolbar() {
     for (const b of document.querySelectorAll("#plan-tools [data-tool]")) b.setAttribute("aria-pressed", String(P.tool === b.dataset.tool));
     $("plan-undo").disabled = !P.hist.length; $("plan-redo").disabled = !P.fut.length;
-    const sv = savedDoc();
-    $("plan-reset").hidden = !sv;
-    if (sv) $("plan-reset").title = `Put the layout back to the plan saved in the room brief${sv.savedAt ? " on " + new Date(sv.savedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : ""}`;
+    renderVersions();
     const u = geom() && geom().underlay, ub = $("plan-underlay");
     ub.hidden = !(u && RP.safeImg(u.src)); ub.setAttribute("aria-pressed", String(!!(u && u.show !== false)));
     ub.title = u && u.show !== false ? "Hide the floor plan image under the drawing" : "Show the floor plan image under the drawing";
@@ -2435,6 +2442,8 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
     const d = b.dataset, m = model();
     if (b.id === "plan-start-btn") return startPlan();
     if (d.tool) { setTool(P.tool === d.tool && d.tool !== "select" ? "select" : d.tool); return; }
+    if (d.goback) return goBackTo(d.goback);
+    if (d.delversion) return removeVersion(d.delversion);
     if (d.pick) { const [t, id] = d.pick.split(":"); P.sel = { t, id }; render(); return; }
     if (d.place) { const e2 = elById(d.place); return addItem(G.kindForPart(e2) || "box", d.place); }
     switch (d.act || b.id) {
@@ -2445,7 +2454,7 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
       case "plan-zoom-out": { const r = svg().getBoundingClientRect(); return zoomAt(r.left + r.width / 2, r.top + r.height / 2, 0.8); }
       case "plan-png": return savePng();
       case "plan-save": return saveToBrief(b);
-      case "plan-reset": return resetToSaved(b);
+      case "plan-reset": { const box = $("plan-versions"); box.hidden = !box.hidden; b.setAttribute("aria-expanded", String(!box.hidden)); return; }
       case "plan-done": setTool("select"); return;
       case "plan-underlay": return changeGeom((g) => { if (g.underlay) g.underlay.show = g.underlay.show === false; });
       case "plan-cal-go": return applyCalibration();
@@ -2780,38 +2789,76 @@ Use only facts from the page text. For size, convert cm to mm (60 cm = 600) and 
   };
   RP.planCamera = () => { const g = hs().plan; if (!g || !g.camera || !isNum(g.camera.x)) return ""; return G.describeCamera(model(), g.camera, units()); };
   RP.planPlaced = () => new Set(items().map((it) => it.element).filter(Boolean));
-  // ---------- the room brief's plan: save this layout as it, or go back to it ----------
-  const savedDoc = () => { const s = hs().planSaved; return s && s.geometry && Array.isArray(s.geometry.corners) && Array.isArray(s.items) ? s : null; };
+  // ---------- versions of the layout: the original, each one saved to the room brief, and this visit's start ----------
+  const okVersion = (v) => v && v.geometry && Array.isArray(v.geometry.corners) && Array.isArray(v.items);
+  const snapshot = () => ({ geometry: geomDoc(), items: (hs().items || []).map((x) => clean(x)) });
+  // All the layouts you can go back to, original first, then saved ones newest first, then how it was when the page opened.
+  P.versions = () => {
+    const vs = (hs().planVersions || []).filter(okVersion);
+    const orig = vs.find((v) => v.id === "original");
+    const saved = vs.filter((v) => v.id !== "original").sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+    const legacy = okVersion(hs().planSaved) && !saved.length ? [{ id: "legacy-saved", ...hs().planSaved }] : [];
+    const out = [];
+    if (orig) out.push({ id: "original", label: "Original plan", sub: orig.savedAt ? "as first drawn, " + new Date(orig.savedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "as first drawn", v: orig });
+    for (const v of [...saved, ...legacy]) out.push({ id: v.id, label: "Saved to the room brief", sub: v.savedAt ? new Date(v.savedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "", v, removable: v.id !== "legacy-saved" });
+    if (P.sessionStart) out.push({ id: "session", label: "When you opened this page", sub: new Date(P.sessionStart.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), v: P.sessionStart });
+    return out;
+  };
+  // Remember the layout as it is when the page opens, and keep the very first layout as the original.
+  P.capture = () => {
+    const s = hs();
+    if (!s.plan || !s.loaded || !s.loaded.items || !s.loaded.versions) return;
+    if (!P.sessionStart) P.sessionStart = { ...snapshot(), at: Date.now() };
+    if (!P.originalDone) {
+      P.originalDone = true;
+      const db = host().db();
+      if (db && !(s.planVersions || []).some((v) => v.id === "original")) {
+        const base = okVersion(s.planSaved) ? { geometry: s.planSaved.geometry, items: s.planSaved.items } : { geometry: P.sessionStart.geometry, items: P.sessionStart.items };
+        db.doc("planVersions/original").set(clean({ ...base, savedAt: Date.now() })).catch(() => {});
+      }
+    }
+  };
   async function saveToBrief(btn) {
     const db = host().db(), assets = host().assets();
     if (!db || !hs().plan) return;
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      const saved = { geometry: geomDoc(), items: (hs().items || []).map((x) => clean(x)), savedAt: Date.now() };
+      const saved = { ...snapshot(), savedAt: Date.now() };
       let img = null;
       if (assets) { try { const blob = await P.pngBlob(); if (blob) { const r = await assets.upload(new File([blob], "floor-plan.png", { type: "image/png" })); img = "/_blob/" + r.id; } } catch { img = null; } }
       if (img) saved.image = img;
-      await db.doc("plan/saved").set(clean(saved));
+      if (!(hs().planVersions || []).some((v) => v.id === "original") && P.sessionStart) await db.doc("planVersions/original").set(clean({ geometry: P.sessionStart.geometry, items: P.sessionStart.items, savedAt: P.sessionStart.at }));
+      await db.collection("planVersions").add(clean(saved));
       const r = hs().room || {}, patch = { planSavedAt: saved.savedAt };
       if (img) { patch.plan = img; if (!r.planOriginal && RP.safeImg(r.plan)) patch.planOriginal = r.plan; }
       await db.doc("room/brief").update(patch);
-      host().toast(img ? "Saved. The room brief now shows this layout, and Reset comes back to it." : "Saved as the plan to reset to. The picture in the room brief couldn't be updated here.");
+      host().toast(img ? "Saved. The room brief now shows this layout; “Go back to…” can return to it or to any earlier one." : "Saved as a layout to go back to. The picture in the room brief couldn't be updated here.");
     } catch (er) { host().toast(host().dbMessage(er)); }
     finally { btn.disabled = false; btn.textContent = "Save to room brief"; }
   }
-  async function resetToSaved(btn) {
-    const s = savedDoc(); if (!s) return;
-    if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Confirm: put the layout back"; setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Reset to brief plan"; }, 6000); return; }
-    btn.dataset.confirm = ""; btn.textContent = "Reset to brief plan";
-    const changes = [{ coll: "plan", id: "geometry", before: geomDoc(), after: clean(s.geometry) }];
-    const keep = new Set(s.items.map((x) => x.id));
+  async function goBackTo(id) {
+    const ver = P.versions().find((x) => x.id === id); if (!ver) return;
+    const v = ver.v;
+    const changes = [{ coll: "plan", id: "geometry", before: geomDoc(), after: clean(v.geometry) }];
+    const keep = new Set(v.items.map((x) => x.id));
     for (const it of hs().items || []) if (!keep.has(it.id)) changes.push({ coll: "items", id: it.id, before: strip(it), after: null });
-    for (const it of s.items) if (it && typeof it.id === "string") changes.push({ coll: "items", id: it.id, before: itemDoc(it.id), after: strip(clean(it)) });
-    P.sel = null; P.cacheReset = true;
+    for (const it of v.items) if (it && typeof it.id === "string") changes.push({ coll: "items", id: it.id, before: itemDoc(it.id), after: strip(clean(it)) });
+    P.sel = null; P.cacheReset = true; $("plan-versions").hidden = true; $("plan-reset").setAttribute("aria-expanded", "false");
     await commit(changes);
-    host().toast("Back to the plan saved in the room brief. Press Undo to return to your changes.");
+    host().toast(`Back to: ${ver.label.toLowerCase()}${ver.sub ? " (" + ver.sub + ")" : ""}. Press Undo to return to your changes.`);
   }
-  P.saveToBrief = saveToBrief; P.resetToSaved = resetToSaved;
+  async function removeVersion(id) {
+    const db = host().db(), v = (hs().planVersions || []).find((x) => x.id === id); if (!db || !v || id === "original") return;
+    const { id: _, ...data } = v;
+    try { await db.doc("planVersions/" + id).delete(); host().toast("Removed that saved layout.", async () => { await db.doc("planVersions/" + id).set(data); }); }
+    catch (er) { host().toast(host().dbMessage(er)); }
+  }
+  function renderVersions() {
+    const list = P.versions(), box = $("plan-versions");
+    $("plan-reset").hidden = !list.length;
+    box.innerHTML = `<p class="hint">Go back to a layout. Undo returns to what you have now.</p><ul>${list.map((x) => `<li><button type="button" class="link-btn" data-goback="${esc(x.id)}">${esc(x.label)}</button> <small>${esc(x.sub)}</small>${x.removable ? ` <button type="button" class="link-btn danger" data-delversion="${esc(x.id)}" aria-label="Remove the layout saved ${esc(x.sub)}">Remove</button>` : ""}</li>`).join("")}</ul>`;
+  }
+  P.saveToBrief = saveToBrief; P.goBackTo = goBackTo;
 
   RP.planAreas = () => { const g = hs().plan; if (!g || !Array.isArray(g.corners) || g.corners.length < 3) return null; return G.areas(model(), hs().room && hs().room.height_mm); };
 })();

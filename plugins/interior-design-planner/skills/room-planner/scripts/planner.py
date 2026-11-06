@@ -383,8 +383,8 @@ def build_docs(data, types, photo_map):
             docs.append(("plan", "geometry", geometry))
             for iid, body in items:
                 docs.append(("items", iid, body))
-            # the layout as set up is what "Reset to brief plan" comes back to until the person saves another
-            docs.append(("plan", "saved", {"geometry": geometry, "items": [{"id": iid, **body} for iid, body in items], "savedAt": 0}))
+            # the layout as set up is the original one "Go back to…" can always return to
+            docs.append(("planVersions", "original", {"geometry": geometry, "items": [{"id": iid, **body} for iid, body in items], "savedAt": 0}))
     docs.append(("state", "selection", {"map": start}))
     if start:
         docs.append(("presets", "suggested", {"name": "Suggested", "order": 0, "map": start}))

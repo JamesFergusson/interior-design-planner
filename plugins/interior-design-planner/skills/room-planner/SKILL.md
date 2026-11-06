@@ -198,8 +198,8 @@ Read back with ArtifactData `list` on `elements` and `options` and confirm the c
   exact sizes and gaps, add doors, windows and partitions, and place the camera for the picture; paste product links
   in the inbox and press Update (desktop app) or ask you to process them; "Visualise in ChatGPT" opens a pre-filled
   chat with every item's size and position, and "Save plan image" gives a drawing to attach; pictures ChatGPT makes
-  can be added back (or pasted) under "Pictures from ChatGPT"; "Save to room brief" keeps a layout and "Reset to
-  brief plan" returns to it; "Save backup" keeps a copy;
+  can be added back (or pasted) under "Pictures from ChatGPT"; "Save to room brief" keeps a layout and "Go back
+  to…" returns to the original or any saved one; "Save backup" keeps a copy;
 - that sharing it with someone lets them see and change it too.
 
 ## Process the inbox

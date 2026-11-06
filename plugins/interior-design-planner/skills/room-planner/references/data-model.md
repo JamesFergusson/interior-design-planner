@@ -109,9 +109,11 @@ The format, and how to read someone's floor plan, are in `references/floor-plan.
   "openings": [{"id", "type", "wall" (a corner id = the wall starting there, or a divider id), "at", "width", "side" (1 or -1),
   "hinge", "style", "sill", "head"}], "camera": {"x", "y", "dir", "fov", "eye"} or null, "underlay": {"src", "x", "y", "mmPerPx",
   "opacity", "show"}, "grid", "version"}`. Written by `planner.py seed` from the `plan` section, and by the page as people edit.
-- `plan/saved`: the layout "Reset to brief plan" goes back to: `{"geometry", "items": [{"id", …}], "savedAt", "image"?}`.
-  `planner.py seed` writes the starting layout; "Save to room brief" replaces it and puts a drawing of the layout in
-  `room/brief.plan` (the drawing it replaced, if any, is kept as `room/brief.planOriginal`).
+- `planVersions/<id>`: layouts "Go back to…" can return to: `{"geometry", "items": [{"id", …}], "savedAt", "image"?}`.
+  `planVersions/original` is the first layout (written by `planner.py seed`, or by the page the first time it opens a
+  plan without one) and is never overwritten. Each "Save to room brief" adds one and puts a drawing of the layout in
+  `room/brief.plan` (the drawing it replaced first is kept as `room/brief.planOriginal`). `plan/saved` is from an
+  earlier test version and is read only if no saved versions exist.
 - `items/<id>`: one thing in the floor plan: `{"name", "kind", "shape", "w", "d", "h", "z", "x", "y", "rot", "flip", "cut",
   "element" (part id or ""), "follow" (take the chosen option's size), "inset", "attach" (id of the item it moves with), "order"}`. `x`, `y` are the middle of its back
   edge; `rot` is clockwise degrees.

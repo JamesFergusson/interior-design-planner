@@ -24,8 +24,8 @@ Floor plan.
   wider product chosen in the list keeps its wall-side edge where it was.
 - Doors and windows: "+ Door" and "+ Window" on the toolbar, and handles on each edge to resize them by dragging.
 - "Save to room brief" makes the current layout the room's plan (the brief shows a drawing of it; the original
-  drawing is kept), and "Reset to brief plan" puts the layout back to it. The layout Claude sets up counts as the
-  first saved plan.
+  drawing is kept) and keeps it as a version. "Go back to…" returns to the original plan, any saved version, or
+  the layout as it was when the page was opened; Undo returns to the latest changes.
 - Pictures from ChatGPT: add them back to the planner (choose files, drop them on the panel, or paste). Each keeps
   the date, the choices and prompt it was made from, and a note; one can be the room brief's design study.
 - Backup and restore include the floor plan, the saved plan and the pictures.

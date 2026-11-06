@@ -627,41 +627,61 @@ test("doors and windows: add from the toolbar, resize by dragging an edge, move,
 });
 
 // ---------- the room brief's plan; pictures from ChatGPT ----------
-test("save the layout to the room brief, rearrange, then reset back to it (and undo the reset)", async () => {
+test("layout versions: save to the brief, keep the original, go back to either, undo", async () => {
   const { page, ctx, errors } = await open("main-bathroom");
-  assert.equal(await page.locator("#plan-reset").isVisible(), true, "the starting layout can be reset to from the start");
-  // move the WC, then save that as the brief's plan
+  const orig = await item(page, "wc");
+  assert.ok((await dump(page))["planVersions/original"], "the setup layout is the original");
+  // move the WC and save: that becomes a saved version and the brief's picture
   await pick(page, "wc");
   await page.locator("#plan-svg").focus();
   await page.keyboard.press("Alt+ArrowDown"); await page.waitForTimeout(80);
-  const moved = await item(page, "wc");
   await page.click("#plan-save");
   await page.waitForFunction(() => window.__mockStore.get("room/brief").planSavedAt > 0, null, { timeout: 8000 });
   let d = await dump(page);
-  assert.match(d["room/brief"].plan, /^\/_blob\/up\d+$/, "the brief shows a drawing of the layout");
+  assert.match(d["room/brief"].plan, /^\/_blob\/up\d+$/);
   assert.match(d["room/brief"].planOriginal, /^\/_blob\//, "the original drawing is kept");
-  assert.equal(d["plan/saved"].items.find((x) => x.id === "wc").y, moved.y);
-  assert.equal((await page.evaluate(() => window.__uploads))[0].type, "image/png");
-  // rearrange: move the WC again and delete the bath
+  assert.equal(Object.keys(d).filter((k) => k.startsWith("planVersions/")).length, 2);
+  // move it again and save a second time: the original is still there
   await page.locator("#plan-svg").focus();
   await page.keyboard.press("Alt+ArrowDown"); await page.waitForTimeout(80);
+  await page.click("#plan-save");
+  await page.waitForFunction(() => [...window.__mockStore.keys()].filter((k) => k.startsWith("planVersions/")).length === 3, null, { timeout: 8000 });
+  // then delete the bath
   await pick(page, "bath");
   await page.locator("#plan-svg").focus();
   await page.keyboard.press("Delete"); await page.waitForTimeout(80);
-  assert.equal(await item(page, "bath"), undefined);
-  // reset asks first
+  // the list offers the original, both saved layouts, and the page-open layout
   await page.click("#plan-reset");
-  assert.match(await page.locator("#plan-reset").innerText(), /Confirm/);
-  await page.click("#plan-reset"); await page.waitForTimeout(150);
+  const labels = await page.locator("#plan-versions [data-goback]").allInnerTexts();
+  assert.deepEqual(labels, ["Original plan", "Saved to the room brief", "Saved to the room brief", "When you opened this page"]);
+  await page.click('[data-goback="original"]'); await page.waitForTimeout(150);
   d = await dump(page);
-  assert.equal(d["items/wc"].y, moved.y, "WC back where it was saved");
+  assert.equal(d["items/wc"].y, orig.y, "WC back where it started");
   assert.ok(d["items/bath"], "bath back");
-  // undo the reset: the rearranged version returns
+  // the newest saved layout
+  await page.click("#plan-reset");
+  await page.locator("#plan-versions [data-goback]").nth(1).click(); await page.waitForTimeout(150);
+  assert.equal((await item(page, "wc")).y, orig.y + 200);
+  // undo goes back to the original we had just returned to
   await page.locator("#plan-svg").focus();
   await page.keyboard.press("Control+z"); await page.waitForTimeout(150);
-  d = await dump(page);
-  assert.equal(d["items/wc"].y, moved.y + 100);
-  assert.equal(d["items/bath"], undefined);
+  assert.equal((await item(page, "wc")).y, orig.y);
+  // a saved layout can be removed; the original can't
+  await page.click("#plan-reset");
+  assert.equal(await page.locator('[data-delversion="original"]').count(), 0);
+  await page.locator("#plan-versions [data-delversion]").first().click(); await page.waitForTimeout(100);
+  assert.equal(Object.keys(await dump(page)).filter((k) => k.startsWith("planVersions/")).length, 2);
+  noErrors(errors); await ctx.close();
+});
+
+test("a planner without an original keeps the layout it opens with as the original", async () => {
+  const { store } = loadFixture("ensuite");
+  const s = structuredClone(store); delete s["planVersions/original"];
+  const { page, ctx, errors } = await openPlanner({ store: s });
+  await ready(page); await page.waitForTimeout(300);
+  const d = await dump(page);
+  assert.ok(d["planVersions/original"]);
+  assert.equal(d["planVersions/original"].items.length, 6);
   noErrors(errors); await ctx.close();
 });
 
