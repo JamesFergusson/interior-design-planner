@@ -5,10 +5,12 @@ description: >
   ("help me plan my living room", "set up a room planner", "redo our bathroom", "I'm redecorating the bedroom",
   "compare sofas and paint for the lounge", "interior design planner"), or when they ask to work on a planner it
   made earlier ("process my room planner inbox", "add more options to my planner", "find me a cheaper rug for the planner",
-  "update my room planner"). It builds an interactive planner page with real product options for each part of the room,
-  quantities and costs, a budget bar, a shopping schedule, a link inbox and a ChatGPT visualisation button.
+  "update my room planner"), or give a floor plan to draw ("here's the floor plan", "draw my room in the planner").
+  It builds an interactive planner page with real product options for each part of the room, quantities and costs,
+  a budget bar, a shopping schedule, a millimetre-accurate floor plan the person can rearrange, a link inbox and a
+  ChatGPT visualisation button.
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # Room Planner
@@ -49,7 +51,8 @@ request has not already answered:
 4. Budget (and whether it includes fitting), and which country they buy in (sets currency and shops).
 5. Which parts to include, if they only want some (e.g. "just paint, rug and lighting").
 
-Invite them to attach a floor plan, photos of the room, or links to products they already like. Do not ask a second
+Invite them to attach a floor plan (it is drawn into the planner to scale), photos of the room, or links to products
+they already like. Do not ask a second
 round of questions. Fill gaps with these defaults and list every assumption in the hand-over:
 
 - **No name**: room type plus place, e.g. "Kitchen, Lyon" or "Primary bedroom".
@@ -84,7 +87,10 @@ layout: for a bath, the walls around it from the rim (about 550 mm) to the ceili
 that stay.
 
 If the user attached a floor plan or room photo, save it beside room.json and set `room.plan_file` or
-`room.photo_file`. If the user doesn't want a part the template includes as a different kind (e.g. one bookcase
+`room.photo_file`. If they gave a floor plan, also write the `plan` section: walls, partitions, doors, windows, what
+is staying, and an item for each part that stands on the floor or a wall (read `references/floor-plan.md` first).
+Without a floor plan, still add a `plan` when the layout is clear enough (a rectangle from the room size and the
+layout you assumed); the person can then move things. Leave it out if you know too little. If the user doesn't want a part the template includes as a different kind (e.g. one bookcase
 instead of two shelves), see "one purchase covers the part" in `references/data-model.md`.
 
 ### 3. Find real products
@@ -94,7 +100,8 @@ from shops in the user's country, that fit the room's size, look and budget, acr
 product page to confirm the name, price and size, and check the page you got is that product (shops redirect
 discontinued products to category pages); never invent a product, price or link.
 
-Mark the best fit in each part `"status": "shortlisted"`. The page opens with the user's `picks` plus the
+Record each product's size (`size`, millimetres; see "Sizes" in the research guide); the floor plan draws it at that
+size, so check the figures on the page. Mark the best fit in each part `"status": "shortlisted"`. The page opens with the user's `picks` plus the
 shortlisted option in every other part already chosen, so the budget bar shows a realistic total from the start.
 Choose the shortlist so that total sits within the budget.
 
@@ -128,7 +135,9 @@ are still empty; the user can add the rest through the inbox.
 python3 <skill>/scripts/planner.py check room.json
 ```
 
-Fix every ERROR. Read every warning and fix the ones that matter (missing quantities on priced parts, missing links).
+Fix every ERROR. Read every warning and fix the ones that matter (missing quantities on priced parts, missing links,
+floor plan clashes, items outside the room, doors that hit things, placed parts whose options have no size). With a
+plan, compare the wall lengths and positions it prints against the drawing.
 The summary shows each part's starting choice, the starting total against the budget, and the cheapest total. If the
 starting total is over budget, shortlist cheaper options; if even the cheapest is over, say so in the hand-over.
 
@@ -180,12 +189,17 @@ Read back with ArtifactData `list` on `elements` and `options` and confirm the c
 
 - the planner is ready (the app shows its card; do not paste the URL unless asked);
 - how many options you found, the starting total against the budget, and which parts are still empty;
-- every assumption you made (sizes, layout, look, parts left out, sizes chosen for rugs or blinds);
+- every assumption you made (sizes, layout, look, parts left out, sizes chosen for rugs or blinds), and for the floor
+  plan, which measurements came from the drawing and which you scaled or assumed;
 - costs not included (delivery, fitting, sundries such as adhesive, grout, primer, bulbs), and any work that needs
   a trade (an electrician for wired lights and anything in a bathroom, a plumber for taps and vanities);
 - how to use it: the starting choices are suggestions (the "Suggested" and "Cheapest" buttons switch between sets);
-  pick one option per part; change quantities in place; paste product links in the inbox and press Update (desktop
-  app) or ask you to process them; "Visualise in ChatGPT" opens a pre-filled chat; "Save backup" keeps a copy;
+  pick one option per part; change quantities in place; in the floor plan, drag things (arrow keys move 1 mm), type
+  exact sizes and gaps, add doors, windows and partitions, and place the camera for the picture; paste product links
+  in the inbox and press Update (desktop app) or ask you to process them; "Visualise in ChatGPT" opens a pre-filled
+  chat with every item's size and position, and "Save plan image" gives a drawing to attach; pictures ChatGPT makes
+  can be added back (or pasted) under "Pictures from ChatGPT"; "Save to room brief" keeps a layout and "Go back
+  to…" returns to the original or any saved one; "Save backup" keeps a copy;
 - that sharing it with someone lets them see and change it too.
 
 ## Process the inbox
@@ -200,7 +214,7 @@ When asked to process the planner's inbox (or the page says links are queued):
    quantity (e.g. two alcoves need two units: change the part's `qty` only if the user says so).
 3. Create the option with ArtifactData `set` on `options/<part>-<short-name>` (lowercase, hyphens; fields in
    `references/data-model.md`, with `"source": "link"`, `"status": "idea"`, `"image": ""`, `"order"` = highest existing order + 1, and at
-   least 1000). If the photo download fails, skip it. For a photo,
+   least 1000). Include `size` from the page (research guide, "Sizes"). If the photo download fails, skip it. For a photo,
    download it as in setup, upload it with the Artifact tool (`url` = planner, `asset: true`, `file_path`), and set
    `image` to the returned `/_blob/…` URL.
 4. Update the inbox item, passing its `version` as `if_version`: `{"state": "done", "optionId": "<id>",
@@ -216,10 +230,21 @@ change existing ones with `update` and `if_version`. Never delete or overwrite t
 `manual` or `link`) unless they ask. To change quantities or the room details, `update` `elements/<id>` or
 `room/brief`. Keep the selection (`state/selection`) as the user left it unless they ask you to choose.
 
+## Draw or change the floor plan
+
+When the person gives a floor plan for an existing planner, or asks you to change the walls or layout: read
+`references/floor-plan.md`, read the planner's `elements`, `options`, `state/selection`, `plan/geometry` and
+`items` (ArtifactData), write a room.json holding the room, the options with their ids, the selection as `picks`
+and the new `plan`, run `planner.py check`, then `seed` to a scratch folder and send only the `plan/geometry` and
+`items/…` writes. Pin `if_version` on documents that already exist. If the person has already arranged things,
+change only what they asked for. Give options that are placed in the plan a `size` if they lack one (`update`).
+
 ## Update an older planner to the latest page
 
 Read the planner with the Artifact tool, then publish the current `assets/planner.html` (with its title restored)
-to the same `url`, omitting `capabilities` so the stored ones carry over. The saved data is untouched.
+to the same `url`, omitting `capabilities` so the stored ones carry over. The saved data is untouched. Planners from
+before 0.2.0 have no floor plan: the page offers "Start the floor plan" (a rectangle from the room size), or you can
+draw one as above; their options have no sizes until you add them.
 
 ## Rules
 

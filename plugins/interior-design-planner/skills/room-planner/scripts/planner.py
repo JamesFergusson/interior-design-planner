@@ -9,13 +9,13 @@ Standard library only. Run with python3.
   python3 planner.py seed room.json --out DIR [--photos uploaded.json]  write one JSON file per document
                                                                         and print the batches to send
 
-room.json format: see references/data-model.md.
+room.json format: see references/data-model.md (the floor plan section: references/floor-plan.md).
 """
 import json, math, os, re, sys, pathlib
 
 HERE = pathlib.Path(__file__).resolve().parent
 TYPES_PATH = HERE.parent / "references" / "room-types.json"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 UNITS = {"item", "m²", "m", "L", "ft²", "ft"}
 IMPERIAL_UNIT = {"m²": "ft²", "m": "ft"}
@@ -247,6 +247,11 @@ def check(data, base_dir, types):
             o = next((x for x in opts if isinstance(x, dict) and x.get("id") == v), None)
             if o and o.get("element") != k:
                 errors.append(f"picks: option {v!r} belongs to {o.get('element')!r}, not {k!r}.")
+    errors += check_sizes(data)
+    if not errors and data.get("plan") is not None:
+        _, _, pe, pw, _ = build_plan(data, types, starting_selection(data, types))
+        errors += pe
+        warnings += pw
     return errors, warnings
 
 
@@ -331,6 +336,8 @@ def summary(data, types):
     lines.append(f"  Starting choices (picks + shortlisted): {sym}{t:,.2f}" + (f", {un} without a price" if un else "") + (f" — {'over' if t > budget else 'within'} the {sym}{budget:,.0f} budget" if pos(budget) else ""))
     lines.append(f"  Cheapest option in every part: {sym}{ch:,.2f}")
     lines.append(f"  Parts with nothing chosen at the start: {sum(1 for e in els if e['id'] not in start)} of {len(els)}")
+    if data.get("plan") is not None:
+        lines += build_plan(data, types, start)[4]
     return "\n".join(lines)
 
 
@@ -357,8 +364,27 @@ def build_docs(data, types, photo_map):
                "priceNote": o.get("priceNote", ""), "spec": o.get("spec", ""), "note": o.get("note", ""),
                "status": o.get("status", "idea"), "source": "setup", "order": n,
                "image": photo_map.get(oid, "") if img or oid in photo_map else ""}
+        if isinstance(o.get("size"), dict):
+            doc["size"] = {k: o["size"][k] for k in ("w", "d", "h") if pos(o["size"].get(k))}
+            doc["size"]["from"] = o["size"].get("from", "page")
+        if o.get("shape"):
+            doc["shape"] = o["shape"]
         docs.append(("options", oid, doc))
     start = starting_selection(data, types)
+    if data.get("plan") is not None:
+        geometry, items, _, _, _ = build_plan(data, types, start)
+        if geometry:
+            if photo_map.get("room:plan"):
+                u = geometry.get("underlay") or {"x": 0, "y": 0, "mmPerPx": None, "opacity": 0.45}
+                # the drawing is for tracing and checking; once items are placed it would show their old positions
+                geometry["underlay"] = {**u, "src": photo_map["room:plan"], "show": not items}
+            elif geometry.get("underlay"):
+                geometry.pop("underlay")
+            docs.append(("plan", "geometry", geometry))
+            for iid, body in items:
+                docs.append(("items", iid, body))
+            # the layout as set up is the original one "Go back to…" can always return to
+            docs.append(("planVersions", "original", {"geometry": geometry, "items": [{"id": iid, **body} for iid, body in items], "savedAt": 0}))
     docs.append(("state", "selection", {"map": start}))
     if start:
         docs.append(("presets", "suggested", {"name": "Suggested", "order": 0, "map": start}))
@@ -366,6 +392,365 @@ def build_docs(data, types, photo_map):
     if cheap and cheap != start:
         docs.append(("presets", "cheapest", {"name": "Cheapest", "order": 1, "map": cheap}))
     return docs
+
+
+# ---------------------------------------------------------------- floor plan
+# room.json "plan" section -> plan/geometry document + items/<id> documents. Same geometry rules as the page.
+KINDS_PATH = HERE.parent / "references" / "plan-kinds.json"
+SHAPES = {"rect", "rounded", "round", "quadrant", "L"}
+OPENING_TYPES = {"door", "window", "opening"}
+DOOR_STYLES = {"hinged", "double", "sliding", "pocket", "folding"}
+
+
+def load_kinds():
+    k = json.loads(KINDS_PATH.read_text())
+    return k["kinds"], k["parts"]
+
+
+def letter(i):
+    return chr(65 + i) if i < 26 else chr(65 + i % 26) + str(i // 26 + 1)
+
+
+def poly_area(pts):
+    return sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(pts, pts[1:] + pts[:1])) / 2
+
+
+def outline_walls(corners):
+    cw = poly_area(corners) >= 0
+    out = []
+    for i, a in enumerate(corners):
+        b = corners[(i + 1) % len(corners)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1e-9
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, ny = (-uy, ux) if cw else (uy, -ux)
+        out.append({"id": f"c{i + 1}", "name": "wall " + letter(i), "letter": letter(i), "a": a, "b": b, "len": L, "u": (ux, uy), "n": (nx, ny), "kind": "wall"})
+    return out
+
+
+def divider_wall(d, i):
+    a, b = (d["x1"], d["y1"]), (d["x2"], d["y2"])
+    L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1e-9
+    ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+    return {"id": d["id"], "name": f"partition {i + 1}", "letter": f"P{i + 1}", "a": a, "b": b, "len": L, "u": (ux, uy), "n": (-uy, ux), "t": d.get("t") or 100, "kind": "divider"}
+
+
+def divider_rect(w):
+    h = w["t"] / 2
+    (ax, ay), (bx, by), (nx, ny) = w["a"], w["b"], w["n"]
+    return [(ax + nx * h, ay + ny * h), (bx + nx * h, by + ny * h), (bx - nx * h, by - ny * h), (ax - nx * h, ay - ny * h)]
+
+
+def rot_pt(x, y, deg):
+    a = math.radians(deg)
+    return x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a)
+
+
+def local_parts(it):
+    w, d, hw, s = it["w"], it["d"], it["w"] / 2, it.get("shape") or "rect"
+    if s == "round":
+        return [[(math.cos(i / 32 * 2 * math.pi) * hw, d / 2 + math.sin(i / 32 * 2 * math.pi) * d / 2) for i in range(32)]]
+    if s == "quadrant":
+        return [[(-hw, 0)] + [(-hw + math.cos(i / 12 * math.pi / 2) * w, math.sin(i / 12 * math.pi / 2) * d) for i in range(13)]]
+    if s == "L":
+        cut = it.get("cut") or {}
+        cw = min(max(cut.get("w") or w / 2, 1), w - 1)
+        cd = min(max(cut.get("d") or d / 2, 1), d - 1)
+        return [[(-hw, 0), (hw, 0), (hw, d - cd), (-hw, d - cd)], [(-hw, d - cd), (hw - cw, d - cd), (hw - cw, d), (-hw, d)]]
+    return [[(-hw, 0), (hw, 0), (hw, d), (-hw, d)]]
+
+
+def world_parts(it):
+    out = []
+    for part in local_parts(it):
+        pts = []
+        for x, y in part:
+            qx, qy = rot_pt(-x if it.get("flip") else x, y, it.get("rot") or 0)
+            pts.append((it["x"] + qx, it["y"] + qy))
+        out.append(pts)
+    return out
+
+
+def bbox(pts):
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def convex_overlap(P, Q, tol=0.5):
+    for poly in (P, Q):
+        for i in range(len(poly)):
+            a, b = poly[i], poly[(i + 1) % len(poly)]
+            nx, ny = -(b[1] - a[1]), b[0] - a[0]
+            L = math.hypot(nx, ny)
+            if L < 1e-9:
+                continue
+            pp = [(p[0] * nx + p[1] * ny) / L for p in P]
+            qq = [(p[0] * nx + p[1] * ny) / L for p in Q]
+            if min(max(pp), max(qq)) - max(min(pp), min(qq)) <= tol:
+                return False
+    return True
+
+
+def parts_overlap(A, B):
+    return any(convex_overlap(p, q) for p in A for q in B)
+
+
+def dist_to_seg(p, a, b):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dy * dy
+    t = 0 if not L2 else min(1, max(0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2))
+    return math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy))
+
+
+def point_in_poly(p, pts, tol=0.6):
+    if any(dist_to_seg(p, pts[i], pts[(i + 1) % len(pts)]) <= tol for i in range(len(pts))):
+        return True
+    inside, j = False, len(pts) - 1
+    for i in range(len(pts)):
+        a, b = pts[i], pts[j]
+        if (a[1] > p[1]) != (b[1] > p[1]) and p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]:
+            inside = not inside
+        j = i
+    return inside
+
+
+def half(x):
+    return round(x * 2) / 2
+
+
+def swing_poly(op, wall):
+    """Quarter circle a hinged door sweeps (one per leaf)."""
+    if op["type"] != "door" or op.get("style", "hinged") not in ("hinged", "double"):
+        return []
+    at, w = op["at"], op["width"]
+    (ax, ay), (ux, uy), (nx, ny) = wall["a"], wall["u"], wall["n"]
+    side = -1 if op.get("side") == -1 else 1
+    sx, sy = nx * side, ny * side
+    j1, j2 = (ax + ux * at, ay + uy * at), (ax + ux * (at + w), ay + uy * (at + w))
+    leaves = [(j1, w / 2, 1), (j2, w / 2, -1)] if op.get("style") == "double" else [((j2, w, -1) if op.get("hinge") == "end" else (j1, w, 1))]
+    out = []
+    for h, r, d in leaves:
+        pts = [h] + [(h[0] + r * (ux * d * math.cos(t) + sx * math.sin(t)), h[1] + r * (uy * d * math.cos(t) + sy * math.sin(t))) for t in (i / 8 * math.pi / 2 for i in range(9))]
+        out.append(pts)
+    return out
+
+
+def build_plan(data, types, start_sel):
+    """Resolve room.json's plan section. Returns (geometry, items, errors, warnings, lines)."""
+    plan = data.get("plan")
+    errors, warnings, lines = [], [], []
+    if plan is None:
+        return None, [], errors, warnings, lines
+    if not isinstance(plan, dict):
+        return None, [], ["plan must be an object."], warnings, lines
+    kinds, part_kind = load_kinds()
+    raw = plan.get("corners") or []
+    corners = []
+    for c in raw:
+        xy = (c.get("x"), c.get("y")) if isinstance(c, dict) else tuple(c) if isinstance(c, (list, tuple)) and len(c) == 2 else (None, None)
+        if not (num(xy[0]) and num(xy[1])):
+            errors.append(f"plan.corners: {c!r} must be [x, y] in millimetres."); continue
+        corners.append((float(xy[0]), float(xy[1])))
+    if len(corners) < 3:
+        errors.append("plan.corners needs at least 3 corners (the inside faces of the walls, in order round the room).")
+        return None, [], errors, warnings, lines
+    if abs(poly_area(corners)) < 1e5:
+        errors.append("plan.corners encloses almost no area: are they in millimetres and in order round the room?")
+        return None, [], errors, warnings, lines
+    for i in range(len(corners)):
+        a, b = corners[i], corners[(i + 1) % len(corners)]
+        if math.hypot(b[0] - a[0], b[1] - a[1]) < 1:
+            errors.append(f"plan.corners {i + 1} and {i + 2} are the same point.")
+    walls = outline_walls(corners)
+    by_name = {w["letter"]: w for w in walls}
+    dividers, divs = [], []
+    for i, d in enumerate(plan.get("partitions") or plan.get("dividers") or []):
+        if isinstance(d, dict) and "from" in d and "to" in d:
+            d = {"x1": d["from"][0], "y1": d["from"][1], "x2": d["to"][0], "y2": d["to"][1], "t": d.get("t", d.get("thickness", 100))}
+        if not (isinstance(d, dict) and all(num(d.get(k)) for k in ("x1", "y1", "x2", "y2"))):
+            errors.append(f"plan.partitions[{i}] needs from: [x, y] and to: [x, y]."); continue
+        doc = {"id": f"p{i + 1}", "x1": d["x1"], "y1": d["y1"], "x2": d["x2"], "y2": d["y2"], "t": d.get("t") if pos(d.get("t")) else 100}
+        dividers.append(doc)
+        w = divider_wall(doc, i)
+        divs.append(w)
+        by_name[w["letter"]] = w
+        for end in (w["a"], w["b"]):
+            if not point_in_poly(end, corners):
+                warnings.append(f"partition P{i + 1} ends outside the room at {end}.")
+    openings = []
+    for i, o in enumerate(plan.get("openings") or []):
+        where = f"plan.openings[{i}]"
+        if not isinstance(o, dict):
+            errors.append(f"{where} is not an object."); continue
+        t = o.get("type", "door")
+        if t not in OPENING_TYPES:
+            errors.append(f"{where}: type must be door, window or opening."); continue
+        w = by_name.get(str(o.get("wall", "")).upper())
+        if not w:
+            errors.append(f"{where}: wall {o.get('wall')!r} is not a wall letter ({', '.join(sorted(by_name))})."); continue
+        width, at = o.get("width"), o.get("at", o.get("from", 0))
+        if not pos(width):
+            errors.append(f"{where}: width must be a positive number of mm."); continue
+        if not (num(at) and at >= 0):
+            errors.append(f"{where}: at (distance from the start of wall {w['letter']}) must be a number of mm."); continue
+        if at + width > w["len"] + 0.5:
+            errors.append(f"{where}: {t} {width} mm at {at} mm runs past the end of wall {w['letter']} ({w['len']:.0f} mm)."); continue
+        style = o.get("style", "hinged") if t == "door" else None
+        if t == "door" and style not in DOOR_STYLES:
+            errors.append(f"{where}: style must be one of {', '.join(sorted(DOOR_STYLES))}."); continue
+        side = o.get("side", "in")
+        side = -1 if side in (-1, "out", "-", "right") else 1
+        doc = {"id": f"op{i + 1}", "type": t, "wall": w["id"], "at": at, "width": width, "side": side, "hinge": "end" if o.get("hinge") == "end" else "start"}
+        if t == "door":
+            doc.update({"style": style, "head": o.get("head", 2040)})
+        if t == "window":
+            doc.update({"sill": o.get("sill", 900), "head": o.get("head", 2100)})
+        openings.append((doc, w))
+    # items
+    opts = {o.get("id"): o for o in data.get("options") or [] if isinstance(o, dict)}
+    els = {e["id"]: e for e in resolve_elements(data, types)}
+    items, resolved = [], []
+    used = set()
+    for i, it in enumerate(plan.get("items") or []):
+        where = f"plan.items[{i}]"
+        if not isinstance(it, dict):
+            errors.append(f"{where} is not an object."); continue
+        part = it.get("part")
+        if part and part not in els:
+            errors.append(f"{where}: part {part!r} is not a part of this room."); continue
+        kind = it.get("kind") or (part_kind.get(part) if part else None) or "box"
+        if kind not in kinds:
+            errors.append(f"{where}: kind {kind!r} is not one of: {', '.join(sorted(kinds))}."); continue
+        k = kinds[kind]
+        label = it.get("name") or (els[part]["name"] if part else k["label"])
+        where = f"{where} ({label})"
+        o = opts.get(start_sel.get(part)) if part and it.get("follow", True) else None
+        size = o.get("size") if o and isinstance(o.get("size"), dict) and pos(o["size"].get("w")) and pos(o["size"].get("d")) else None
+        w = size["w"] if size else it.get("w", k["w"])
+        d = size["d"] if size else it.get("d", k["d"])
+        h = (size.get("h") if size and pos(size.get("h")) else None) or it.get("h", k["h"])
+        if not (pos(w) and pos(d)):
+            errors.append(f"{where}: needs w and d in mm (or a part whose chosen option has a size)."); continue
+        shape = (o.get("shape") if size and o.get("shape") else None) or it.get("shape") or k.get("shape", "rect")
+        if shape not in SHAPES:
+            errors.append(f"{where}: shape must be one of {', '.join(sorted(SHAPES))}."); continue
+        r = {"w": w, "d": d, "shape": shape, "cut": it.get("cut"), "flip": bool(it.get("flip"))}
+        if it.get("against"):
+            wall = by_name.get(str(it["against"]).upper())
+            if not wall:
+                errors.append(f"{where}: against {it['against']!r} is not a wall letter ({', '.join(sorted(by_name))})."); continue
+            (ax, ay), (ux, uy), (nx, ny) = wall["a"], wall["u"], wall["n"]
+            if wall["kind"] == "divider":
+                s = -1 if it.get("side") in (-1, "-", "right") else 1
+                nx, ny = nx * s, ny * s
+                ax, ay = ax + nx * wall["t"] / 2, ay + ny * wall["t"] / 2
+            gap = it.get("gap", 0) or 0
+            if num(it.get("from")):
+                along = it["from"] + w / 2
+            elif num(it.get("from_end")):
+                along = wall["len"] - it["from_end"] - w / 2
+            else:
+                errors.append(f"{where}: with against, give from (mm from the start of wall {wall['letter']} to the item's nearer side) or from_end."); continue
+            rr = (math.degrees(math.atan2(-nx, ny)) + 360) % 360
+            r.update({"x": half(ax + ux * along + nx * gap), "y": half(ay + uy * along + ny * gap), "rot": round(rr, 1) % 360})
+            r["where"] = f"against {wall['name']}, {it.get('from', it.get('from_end'))} mm from its {'start' if num(it.get('from')) else 'end'}"
+        elif isinstance(it.get("box"), (list, tuple)) and len(it["box"]) == 2:
+            rr = (it.get("rot") or 0) % 360
+            if rr not in (0, 90, 180, 270):
+                errors.append(f"{where}: box placement needs rot 0, 90, 180 or 270."); continue
+            x0, y0 = it["box"]
+            ax, ay = {0: (x0 + w / 2, y0), 90: (x0 + d, y0 + w / 2), 180: (x0 + w / 2, y0 + d), 270: (x0, y0 + w / 2)}[rr]
+            r.update({"x": half(ax), "y": half(ay), "rot": rr})
+            r["where"] = f"box from ({x0}, {y0})"
+        elif num(it.get("x")) and num(it.get("y")):
+            r.update({"x": it["x"], "y": it["y"], "rot": (it.get("rot") or 0) % 360})
+            r["where"] = f"anchor ({it['x']}, {it['y']})"
+        else:
+            errors.append(f"{where}: give its position with against + from, or box: [x, y] (+ rot), or x, y (+ rot)."); continue
+        iid = it.get("id") or re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")[:40] or f"item-{i + 1}"
+        base, n = iid, 2
+        while iid in used:
+            iid = f"{base}-{n}"; n += 1
+        used.add(iid)
+        doc = {"name": it.get("name", ""), "kind": kind, "shape": it.get("shape") or k.get("shape", "rect"), "w": it.get("w", w), "d": it.get("d", d), "h": it.get("h", h),
+               "z": it.get("z", k.get("z", 0)), "x": r["x"], "y": r["y"], "rot": r["rot"], "flip": bool(it.get("flip")), "element": part or "",
+               "follow": bool(it.get("follow", True)), "inset": bool(it.get("inset", False)), "order": i, "createdAt": 0}
+        if it.get("cut"):
+            doc["cut"] = it["cut"]
+        if it.get("attach"):
+            doc["attach"] = it["attach"]
+        items.append((iid, doc))
+        resolved.append({"id": iid, "label": label, "kind": kind, "w": w, "d": d, "h": h, "z": doc["z"], "x": r["x"], "y": r["y"], "rot": r["rot"], "shape": shape,
+                         "cut": it.get("cut"), "flip": doc["flip"], "inset": doc["inset"], "layer": k.get("layer"), "where": r["where"], "sized_by": o.get("name") if size else None})
+    ids = {iid for iid, _ in items}
+    for iid, doc in items:
+        if doc.get("attach") and (doc["attach"] not in ids or doc["attach"] == iid):
+            errors.append(f"plan item {iid!r}: attach {doc['attach']!r} must be the id of another item in the plan ({', '.join(sorted(ids - {iid}))}).")
+    attached = {(iid, doc.get("attach")) for iid, doc in items if doc.get("attach")}
+    # checks
+    for r in resolved:
+        pts = [p for part in world_parts(r) for p in part]
+        if not all(point_in_poly(p, corners) for p in pts):
+            warnings.append(f"plan item {r['label']!r} goes outside the room (check its position and rotation).")
+    solid = [r for r in resolved if not r["layer"] and not r["inset"]]
+    for i in range(len(solid)):
+        for j in range(i + 1, len(solid)):
+            a, b = solid[i], solid[j]
+            if (a["id"], b["id"]) in attached or (b["id"], a["id"]) in attached:
+                continue
+            if min(a["z"] + a["h"], b["z"] + b["h"]) - max(a["z"], b["z"]) > 0.5 and parts_overlap(world_parts(a), world_parts(b)):
+                warnings.append(f"plan items {a['label']!r} and {b['label']!r} overlap.")
+    for w in divs:
+        for r in solid:
+            if parts_overlap(world_parts(r), [divider_rect(w)]):
+                warnings.append(f"plan item {r['label']!r} runs into partition {w['letter']}.")
+    for doc, w in openings:
+        for sw in swing_poly(doc, w):
+            for r in solid:
+                if r["z"] < 2000 and parts_overlap([sw], world_parts(r)):
+                    warnings.append(f"the door in {w['name']} hits {r['label']!r} when it opens.")
+    for e in els.values():
+        if e["id"] in {it.get("part") for it in plan.get("items") or [] if isinstance(it, dict)}:
+            for o in data.get("options") or []:
+                if isinstance(o, dict) and o.get("element") == e["id"] and not o.get("size") and o.get("status") != "rejected":
+                    warnings.append(f"option {o.get('name')!r} ({e['id']}) is placed in the floor plan but has no size; the plan will use the item's own size when it is chosen.")
+    # summary
+    lines.append("  Floor plan: " + ", ".join(f"wall {w['letter']} {w['len']:.0f}" for w in walls) + f"; floor {abs(poly_area(corners)) / 1e6:.2f} m²"
+                 + (f"; {len(divs)} partition(s)" if divs else "") + f"; {len(openings)} door(s)/window(s); {len(resolved)} item(s).")
+    for r in resolved:
+        x0, y0, x1, y1 = bbox([p for part in world_parts(r) for p in part])
+        x0, y0, x1, y1 = (0.0 if abs(v) < 0.5 else v for v in (x0, y0, x1, y1))
+        lines.append(f"    {r['label'][:30]:30} {r['w']:g} x {r['d']:g}{' x ' + format(r['h'], 'g') if r['h'] else ''} mm{' (size of ' + r['sized_by'][:30] + ')' if r['sized_by'] else ''}; {r['where']}; spans x {x0:.0f}-{x1:.0f}, y {y0:.0f}-{y1:.0f}")
+    geometry = {"corners": [{"id": f"c{i + 1}", "x": x, "y": y} for i, (x, y) in enumerate(corners)], "wallT": plan.get("wall_thickness", 100),
+                "dividers": dividers, "openings": [d for d, _ in openings], "camera": None, "grid": plan.get("grid", 10), "version": 1}
+    cam = plan.get("camera")
+    if isinstance(cam, dict):
+        if num(cam.get("x")) and num(cam.get("y")):
+            geometry["camera"] = {"x": cam["x"], "y": cam["y"], "dir": (cam.get("dir") or 0) % 360, "fov": cam.get("fov", 75), "eye": cam.get("eye", 1600)}
+            if not point_in_poly((cam["x"], cam["y"]), corners):
+                warnings.append("plan.camera is outside the room.")
+        else:
+            errors.append("plan.camera needs x and y (mm) and dir (degrees: 0 looks up the plan, 90 right, 180 down, 270 left).")
+    u = plan.get("underlay")
+    if isinstance(u, dict) and pos(u.get("mm_per_px")):
+        geometry["underlay"] = {"src": None, "x": u.get("x", 0), "y": u.get("y", 0), "mmPerPx": u["mm_per_px"], "opacity": 0.45, "show": True}
+    return geometry, items, errors, warnings, lines
+
+
+def check_sizes(data):
+    errors = []
+    for n, o in enumerate(data.get("options") or []):
+        if not isinstance(o, dict):
+            continue
+        where = f"option {n + 1} ({o.get('name', '?')!s})"
+        z = o.get("size")
+        if z is not None:
+            if not (isinstance(z, dict) and pos(z.get("w")) and pos(z.get("d")) and (z.get("h") is None or pos(z.get("h")))):
+                errors.append(f"{where}: size must be {{\"w\": mm, \"d\": mm, \"h\": mm}} with positive numbers (h may be left out).")
+            elif max(z["w"], z["d"]) > 12000 or (z["w"] < 20 and z["d"] < 20):
+                errors.append(f"{where}: size {z['w']} x {z['d']} looks wrong; sizes are millimetres (60 cm = 600).")
+        if o.get("shape") and o["shape"] not in SHAPES:
+            errors.append(f"{where}: shape must be one of {', '.join(sorted(SHAPES))}.")
+    return errors
 
 
 def main(argv):

@@ -31,6 +31,21 @@ products marked discontinued or out of stock with no date.
 
 Put the key facts in `spec` (one line) and the one that matters most in `note`.
 
+## Sizes
+
+Record every physical product's overall size in `size`, in millimetres: `w` across the front, `d` front to back,
+`h` height. The floor plan draws the product at exactly this size, so take it from the product page or its spec
+sheet, not from memory or the name (a "1200 vanity" may be 1190 wide).
+
+- Convert: 60 cm = 600 mm; 23.5 in = 597 mm.
+- Shops write sizes in different orders: read the labels (H81.5 x W59.8 x D55 cm is w 598, d 550, h 815). If the
+  page gives three unlabelled numbers, it is usually width x depth x height for furniture and width x height for
+  mirrors, radiators and towel rails (then `d` is the projection from the wall, if given).
+- Shower trays and baths: w is the long side when it sits against a wall along its length.
+- Use the size of the variant you priced. If the page has no dimensions, leave `size` out rather than guess; the
+  plan then uses the part's own size and says so.
+- Set `shape` for round tables, oval baths, quadrant trays and L-shaped sofas.
+
 ## Spread of options
 
 Give each part 2–4 options at different price points, with at least one that keeps the room within budget.

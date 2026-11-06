@@ -205,3 +205,117 @@ class Templates(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def bath_room(**plan):
+    d = base(name="Bathroom", type="bathroom", length_mm=3000, width_mm=2000)
+    d["options"] = [
+        {"id": "wc-a", "element": "wc", "name": "WC", "url": "https://x.example/wc", "price": 200, "status": "shortlisted", "size": {"w": 360, "d": 650, "h": 800}},
+        {"id": "van-a", "element": "vanity", "name": "Vanity", "url": "https://x.example/v", "price": 500, "status": "shortlisted", "size": {"w": 800, "d": 460, "h": 850}},
+        {"id": "van-b", "element": "vanity", "name": "Vanity with no size", "url": "https://x.example/v2", "price": 400},
+    ]
+    d["plan"] = {"corners": [[0, 0], [2000, 0], [2000, 3000], [0, 3000]],
+                 "openings": [{"type": "door", "wall": "C", "at": 200, "width": 700}],
+                 "items": [{"part": "wc", "against": "A", "from": 100}, {"part": "vanity", "against": "B", "from": 0}]}
+    d["plan"].update(plan)
+    return d
+
+
+class FloorPlan(unittest.TestCase):
+    def plan(self, d):
+        return planner.build_plan(d, TYPES, planner.starting_selection(d, TYPES))
+
+    def test_items_against_walls_take_product_sizes(self):
+        g, items, errors, warnings, lines = self.plan(bath_room())
+        self.assertEqual(errors, [])
+        its = dict(items)
+        # WC on wall A (top): back on the wall, 100 mm from the corner with wall D
+        self.assertEqual((its["wc"]["x"], its["wc"]["y"], its["wc"]["rot"]), (280, 0, 0))
+        # vanity on wall B (right), facing into the room: turned 90 degrees, back on x = 2000
+        self.assertEqual((its["vanity-and-basin"]["x"], its["vanity-and-basin"]["y"], its["vanity-and-basin"]["rot"]), (2000, 400, 90))
+        self.assertEqual([c["id"] for c in g["corners"]], ["c1", "c2", "c3", "c4"])
+        self.assertEqual(g["openings"][0]["wall"], "c3")
+        self.assertTrue(any("WC" in l and "360 x 650" in l for l in lines))
+
+    def test_same_result_whichever_way_round_the_corners_go(self):
+        d = bath_room(corners=[[0, 0], [0, 3000], [2000, 3000], [2000, 0]], openings=[], items=[{"part": "wc", "against": "A", "from": 100}])
+        g, items, errors, _, _ = self.plan(d)
+        self.assertEqual(errors, [])
+        wc = dict(items)["wc"]
+        # wall A now runs down the left side: the WC's back is on x = 0, facing right
+        self.assertEqual((wc["x"], wc["y"], wc["rot"]), (0, 280, 270))
+
+    def test_box_placement_and_partitions(self):
+        d = bath_room(partitions=[{"from": [0, 1000], "to": [2000, 1000], "t": 100}],
+                      openings=[{"type": "door", "wall": "P1", "at": 600, "width": 700, "side": "-"}],
+                      items=[{"name": "Cabinet", "kind": "cabinet", "box": [0, 1050], "rot": 90, "w": 600, "d": 300}, {"part": "wc", "against": "P1", "side": "+", "from": 1200}])
+        g, items, errors, warnings, _ = self.plan(d)
+        self.assertEqual(errors, [])
+        its = dict(items)
+        self.assertEqual((its["cabinet"]["x"], its["cabinet"]["y"]), (300, 1350))
+        self.assertEqual((its["wc"]["x"], its["wc"]["y"], its["wc"]["rot"]), (1380, 1050, 0))
+        self.assertEqual(g["dividers"][0]["id"], "p1")
+        self.assertEqual(g["openings"][0]["side"], -1)
+
+    def test_mistakes_are_caught(self):
+        cases = [
+            (dict(corners=[[0, 0], [2000, 0]]), "at least 3 corners"),
+            (dict(corners=[[0, 0], [2, 0], [2, 3], [0, 3]]), "almost no area"),
+            (dict(openings=[{"type": "door", "wall": "Q", "at": 0, "width": 700}]), "not a wall letter"),
+            (dict(openings=[{"type": "window", "wall": "A", "at": 1500, "width": 700}]), "runs past the end of wall A"),
+            (dict(openings=[{"type": "door", "wall": "A", "at": 0, "width": 700, "style": "revolving"}]), "style must be"),
+            (dict(items=[{"part": "wc"}]), "give its position"),
+            (dict(items=[{"part": "nope", "against": "A", "from": 0}]), "not a part of this room"),
+            (dict(items=[{"kind": "spaceship", "against": "A", "from": 0}]), "kind 'spaceship'"),
+            (dict(items=[{"part": "wc", "against": "A"}]), "give from"),
+            (dict(items=[{"part": "wc", "box": [0, 0], "rot": 45}]), "rot 0, 90, 180 or 270"),
+            (dict(camera={"dir": 0}), "plan.camera needs x and y"),
+        ]
+        for patch, msg in cases:
+            with self.subTest(msg=msg):
+                errors, _ = planner.check(bath_room(**patch), ROOT, TYPES)
+                self.assertTrue(any(msg in e for e in errors), errors)
+
+    def test_clashes_and_doors_are_warned(self):
+        d = bath_room(items=[{"part": "wc", "against": "A", "from": 100}, {"name": "Box", "kind": "box", "against": "A", "from": 300, "w": 400, "d": 400},
+                             {"name": "In the doorway", "kind": "box", "against": "C", "from": 300, "w": 400, "d": 400},
+                             {"name": "Off the edge", "kind": "box", "box": [1800, 100], "rot": 0, "w": 400, "d": 400}])
+        errors, warnings = planner.check(d, ROOT, TYPES)
+        self.assertEqual(errors, [])
+        text = "\n".join(warnings)
+        self.assertIn("'WC' and 'Box' overlap", text)
+        self.assertIn("hits 'In the doorway'", text)
+        self.assertIn("'Off the edge' goes outside the room", text)
+        _, warnings = planner.check(bath_room(), ROOT, TYPES)  # the vanity is placed in this one
+        self.assertIn("'Vanity with no size' (vanity) is placed in the floor plan but has no size", "\n".join(warnings))
+
+    def test_option_sizes_are_checked(self):
+        d = bath_room()
+        d["options"][0]["size"] = {"w": 3.6, "d": 6.5}
+        errors, _ = planner.check(d, ROOT, TYPES)
+        self.assertTrue(any("looks wrong" in e for e in errors), errors)
+        d["options"][0]["size"] = {"w": "360", "d": 650}
+        errors, _ = planner.check(d, ROOT, TYPES)
+        self.assertTrue(any("positive numbers" in e for e in errors), errors)
+
+    def test_seed_writes_plan_and_items_before_the_room(self):
+        with tempfile.TemporaryDirectory() as t:
+            p = pathlib.Path(t) / "room.json"
+            p.write_text(json.dumps(bath_room()))
+            r = run("seed", str(p), "--out", str(pathlib.Path(t) / "seed"))
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            writes = [w for b in json.loads((pathlib.Path(t) / "seed" / "batches.json").read_text()) for w in b]
+            keys = [f"{w['collection']}/{w['doc_id']}" for w in writes]
+            self.assertIn("plan/geometry", keys)
+            self.assertIn("items/wc", keys)
+            self.assertEqual(keys[-1], "room/brief")
+            opt = json.loads(pathlib.Path(next(w["file_path"] for w in writes if w["doc_id"] == "wc-a")).read_text())
+            self.assertEqual(opt["size"], {"w": 360, "d": 650, "h": 800, "from": "page"})
+
+    def test_kinds_in_page_match_json(self):
+        html = (ROOT / "plugins/interior-design-planner/skills/room-planner/assets/planner.html").read_text()
+        kinds = json.loads((ROOT / "plugins/interior-design-planner/skills/room-planner/references/plan-kinds.json").read_text())
+        self.assertIn("const PLAN_KINDS = " + json.dumps({k: v for k, v in kinds.items() if not k.startswith("_")}, ensure_ascii=False, separators=(",", ":")) + ";", html)
+        parts = set().union(*[{e["id"] for e in t["elements"]} for t in TYPES.values()])
+        for part, kind in kinds["parts"].items():
+            self.assertIn(kind, kinds["kinds"], part)

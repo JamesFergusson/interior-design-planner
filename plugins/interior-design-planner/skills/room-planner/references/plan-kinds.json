@@ -1,0 +1,384 @@
+{
+ "_comment": "Kinds of item for the floor plan (sizes in mm: w across the front, d front to back, h height, z height above the floor) and which kind each part of the room gets. Injected into assets/planner.html by tools/build.py; read by scripts/planner.py.",
+ "kinds": {
+  "box": {
+   "label": "Box (custom)",
+   "w": 600,
+   "d": 600,
+   "h": 900
+  },
+  "wc": {
+   "label": "WC",
+   "w": 360,
+   "d": 650,
+   "h": 800,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "basin": {
+   "label": "Basin or vanity",
+   "w": 600,
+   "d": 460,
+   "h": 850,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "bath": {
+   "label": "Bath",
+   "w": 1700,
+   "d": 700,
+   "h": 560,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "shower": {
+   "label": "Shower tray",
+   "w": 900,
+   "d": 900,
+   "h": 40,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "screen": {
+   "label": "Shower screen",
+   "w": 800,
+   "d": 10,
+   "h": 2000,
+   "z": 40,
+   "group": "Bathroom"
+  },
+  "bidet": {
+   "label": "Bidet",
+   "w": 360,
+   "d": 540,
+   "h": 400,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "towel-rail": {
+   "label": "Towel rail",
+   "w": 500,
+   "d": 100,
+   "h": 1200,
+   "z": 200,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "radiator": {
+   "label": "Radiator",
+   "w": 800,
+   "d": 100,
+   "h": 600,
+   "z": 150,
+   "wall": 1,
+   "group": "Heating"
+  },
+  "mirror": {
+   "label": "Mirror or cabinet",
+   "w": 600,
+   "d": 40,
+   "h": 700,
+   "z": 1100,
+   "wall": 1,
+   "group": "Bathroom"
+  },
+  "units": {
+   "label": "Base units",
+   "w": 600,
+   "d": 600,
+   "h": 900,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "wall-unit": {
+   "label": "Wall units",
+   "w": 600,
+   "d": 330,
+   "h": 720,
+   "z": 1450,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "tall": {
+   "label": "Tall unit",
+   "w": 600,
+   "d": 600,
+   "h": 2200,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "island": {
+   "label": "Island",
+   "w": 2400,
+   "d": 1000,
+   "h": 900,
+   "group": "Kitchen"
+  },
+  "sink": {
+   "label": "Sink",
+   "w": 800,
+   "d": 500,
+   "h": 200,
+   "z": 700,
+   "layer": "inset",
+   "group": "Kitchen"
+  },
+  "hob": {
+   "label": "Hob",
+   "w": 800,
+   "d": 520,
+   "h": 60,
+   "z": 900,
+   "layer": "inset",
+   "group": "Kitchen"
+  },
+  "oven": {
+   "label": "Oven",
+   "w": 600,
+   "d": 560,
+   "h": 600,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "fridge": {
+   "label": "Fridge freezer",
+   "w": 600,
+   "d": 650,
+   "h": 1850,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "dishwasher": {
+   "label": "Dishwasher",
+   "w": 600,
+   "d": 600,
+   "h": 820,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "washer": {
+   "label": "Washing machine",
+   "w": 600,
+   "d": 600,
+   "h": 850,
+   "wall": 1,
+   "group": "Kitchen"
+  },
+  "shelf": {
+   "label": "Wall shelf",
+   "w": 900,
+   "d": 250,
+   "h": 40,
+   "z": 1500,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "stool": {
+   "label": "Stool",
+   "w": 400,
+   "d": 400,
+   "h": 650,
+   "shape": "round",
+   "group": "Seating"
+  },
+  "sofa": {
+   "label": "Sofa",
+   "w": 2100,
+   "d": 950,
+   "h": 850,
+   "wall": 1,
+   "group": "Seating"
+  },
+  "armchair": {
+   "label": "Armchair",
+   "w": 800,
+   "d": 850,
+   "h": 800,
+   "group": "Seating"
+  },
+  "chair": {
+   "label": "Chair",
+   "w": 550,
+   "d": 550,
+   "h": 900,
+   "group": "Seating"
+  },
+  "dining-chair": {
+   "label": "Dining chair",
+   "w": 450,
+   "d": 520,
+   "h": 850,
+   "group": "Seating"
+  },
+  "coffee-table": {
+   "label": "Coffee table",
+   "w": 1100,
+   "d": 600,
+   "h": 400,
+   "group": "Tables"
+  },
+  "side-table": {
+   "label": "Side table",
+   "w": 450,
+   "d": 450,
+   "h": 550,
+   "shape": "round",
+   "group": "Tables"
+  },
+  "dining-table": {
+   "label": "Dining table",
+   "w": 1600,
+   "d": 900,
+   "h": 750,
+   "group": "Tables"
+  },
+  "desk": {
+   "label": "Desk",
+   "w": 1200,
+   "d": 600,
+   "h": 740,
+   "wall": 1,
+   "group": "Tables"
+  },
+  "console": {
+   "label": "Console table",
+   "w": 1000,
+   "d": 350,
+   "h": 800,
+   "wall": 1,
+   "group": "Tables"
+  },
+  "bed": {
+   "label": "Bed",
+   "w": 1500,
+   "d": 2100,
+   "h": 450,
+   "wall": 1,
+   "group": "Bedroom"
+  },
+  "bedside": {
+   "label": "Bedside table",
+   "w": 450,
+   "d": 400,
+   "h": 550,
+   "wall": 1,
+   "group": "Bedroom"
+  },
+  "wardrobe": {
+   "label": "Wardrobe",
+   "w": 1000,
+   "d": 600,
+   "h": 2000,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "drawers": {
+   "label": "Chest of drawers",
+   "w": 800,
+   "d": 450,
+   "h": 800,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "cabinet": {
+   "label": "Cabinet",
+   "w": 800,
+   "d": 400,
+   "h": 900,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "sideboard": {
+   "label": "Sideboard",
+   "w": 1600,
+   "d": 450,
+   "h": 800,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "shelving": {
+   "label": "Shelving or bookcase",
+   "w": 800,
+   "d": 350,
+   "h": 1800,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "media-unit": {
+   "label": "Media unit",
+   "w": 1600,
+   "d": 400,
+   "h": 500,
+   "wall": 1,
+   "group": "Storage"
+  },
+  "rug": {
+   "label": "Rug",
+   "w": 2400,
+   "d": 1700,
+   "h": 10,
+   "layer": "floor",
+   "group": "Floor"
+  },
+  "plant": {
+   "label": "Plant",
+   "w": 450,
+   "d": 450,
+   "h": 1200,
+   "shape": "round",
+   "group": "Finishing"
+  },
+  "lamp": {
+   "label": "Floor lamp",
+   "w": 400,
+   "d": 400,
+   "h": 1600,
+   "shape": "round",
+   "group": "Lighting"
+  }
+ },
+ "parts": {
+  "wc": "wc",
+  "vanity": "basin",
+  "basin": "basin",
+  "bath": "bath",
+  "tray": "shower",
+  "enclosure": "screen",
+  "towel-rail": "towel-rail",
+  "mirror": "mirror",
+  "radiator": "radiator",
+  "sofa": "sofa",
+  "armchair": "armchair",
+  "coffee-table": "coffee-table",
+  "side-table": "side-table",
+  "shelving": "shelving",
+  "media-unit": "media-unit",
+  "rug": "rug",
+  "runner": "rug",
+  "bed": "bed",
+  "bedside": "bedside",
+  "wardrobe": "wardrobe",
+  "drawers": "drawers",
+  "desk": "desk",
+  "chair": "chair",
+  "storage": "cabinet",
+  "table": "dining-table",
+  "chairs": "dining-chair",
+  "sideboard": "sideboard",
+  "console": "console",
+  "shoes": "cabinet",
+  "coats": "cabinet",
+  "units": "units",
+  "sink": "sink",
+  "hob": "hob",
+  "oven": "oven",
+  "fridge": "fridge",
+  "dishwasher": "dishwasher",
+  "stools": "stool",
+  "floor-lamp": "lamp",
+  "plants": "plant",
+  "open-shelf": "shelf",
+  "island": "island",
+  "furniture": "box"
+ }
+}

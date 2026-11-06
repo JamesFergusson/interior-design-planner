@@ -13,6 +13,14 @@ Four layers. Layers 1 runs automatically on every push; 2 and 3 are run before e
   validation and photos, removing with undo, adding parts, copy and .csv, the ChatGPT prompt and link length, the
   reference board, backup and restore, the inbox with and without the desktop app, save failures, hostile data
   (no injected script runs), layout at phone and desktop width in light and dark, and an accessibility scan.
+- **Floor plan tests** (`tests/plan.test.mjs`): three real rooms (a bathroom with a WC compartment, an ensuite, an
+  L-shaped open-plan kitchen) built by the script draw with no clashes; geometry (lengths typed in any unit, areas,
+  wall directions, clear distances, touching versus overlapping); mouse drags checked to the millimetre at a fixed
+  scale, snapping to items and the grid; keyboard nudges, turning, delete, undo and redo; typed gaps and sizes;
+  following the chosen product's size; walls (length, push, add and remove corners); drawing partitions; doors and
+  windows; clash and door-swing warnings; measure and camera; the ChatGPT prompt's layout section and link length;
+  the plan image; starting a plan; the image underlay; backup; option sizes by hand and from a page; hostile plan
+  data; phone and dark layouts; accessibility. Set `CHROMIUM_PATH` to use an installed Chromium.
 - **Script tests** (`tests/test_planner_py.py`): quantities, cost rules, the checks that catch common mistakes,
   seed output (batch sizes, write order, starting choices, photo mapping), room-type templates, and that the
   version number agrees everywhere.
